@@ -1,38 +1,28 @@
 {
-  "name": "backend",
+  "name": "construction-lead-app",
   "version": "0.1.0",
   "private": true,
+  "description": "Construction lead generating app with AI-powered material estimation",
+  "workspaces": [
+    "mobile",
+    "backend"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "mobile": "cd mobile && npm start",
+    "backend": "cd backend && npm run dev",
+    "backend:build": "cd backend && npm run build",
+    "install:all": "npm install && cd mobile && npm install && cd ../backend && npm install"
   },
+  "keywords": [
+    "construction",
+    "ai",
+    "lead-generation",
+    "react-native",
+    "nextjs"
+  ],
+  "author": "",
+  "license": "MIT",
   "dependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/nodemailer": "^7.0.11",
-    "@types/pdfkit": "^0.17.5",
-    "@types/pg": "^8.18.0",
-    "bcryptjs": "^3.0.3",
-    "jsonwebtoken": "^9.0.3",
-    "next": "16.1.6",
-    "nodemailer": "^8.0.1",
-    "pdfkit": "^0.17.2",
-    "pg": "^8.20.0",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "stripe": "^20.3.1"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "babel-plugin-react-compiler": "1.0.0",
-    "eslint": "^9",
-    "eslint-config-next": "16.1.6",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "openai": "^6.22.0"
   }
 }
