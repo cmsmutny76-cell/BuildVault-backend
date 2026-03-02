@@ -1,4 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+
+// TODO: Replace with actual database
+const mockUsers = new Map();
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 /**
  * POST /api/users/register
@@ -27,17 +34,44 @@ export async function POST(request: NextRequest) {
     } = userData;
 
     // Validate required fields
-    if (!email || !password || !firstName || !lastName) {
+    if (!email || !password ||!firstName || !lastName) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    // TODO: Hash password
-    // TODO: Check if user exists
-    // TODO: Save to database
+    // Validate password length
+    if (password.length < 6) {
+      return NextResponse.json(
+        { error: 'Password must be at least 6 characters' },
+        { status: 400 }
+      );
+    }
 
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: 'Invalid email format' },
+        { status: 400 }
+      );
+    }
+
+    // Check if user already exists
+    if (mockUsers.has(email.toLowerCase())) {
+      return NextResponse.json(
+        { error: 'User with this email already exists' },
+        { status: 409 }
+      );
+    }
+
+    // Hash password
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Create user
+    const userId = 'user_' + Date.now();
+    
     // For contractors, create trial subscription
     let subscription = null;
     if (userType === 'contractor') {
@@ -52,18 +86,19 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    // Mock response
+    // Create user object
     const user = {
-      id: Date.now().toString(),
+      id: userId,
       firstName,
       lastName,
-      email,
+      email: email.toLowerCase(),
+      passwordHash,
       phone,
       address,
       city,
       state,
       zipCode,
-      userType,
+      userType: userType || 'homeowner',
       ...(userType === 'contractor' && {
         businessName,
         licenseNumber,
@@ -71,12 +106,37 @@ export async function POST(request: NextRequest) {
         specialties,
         subscription,
       }),
-      createdAt: new Date().toISOString(),
+      createdAt: new Date(),
+      verified: true, // TODO: Change to false and implement email verification
     };
+
+    // Save user (currently in-memory, TODO: save to database)
+    mockUsers.set(email.toLowerCase(), user);
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        userType: user.userType,
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
     return NextResponse.json({
       success: true,
-      user,
+      token,
+      user: {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone,
+        userType: user.userType,
+        isContractor: user.userType === 'contractor',
+        subscription: subscription,
+      },
       message: userType === 'contractor' 
         ? '30-day free trial activated! Start receiving leads today.'
         : 'Account created successfully!',

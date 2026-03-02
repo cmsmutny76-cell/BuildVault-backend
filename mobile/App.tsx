@@ -16,9 +16,26 @@ import ProjectDetailsScreen from './screens/ProjectDetailsScreen';
 import NewEstimateScreen from './screens/NewEstimateScreen';
 import ProjectProfileScreen from './screens/ProjectProfileScreen';
 import ContractorProfileScreen from './screens/ContractorProfileScreen';
+import ContractorViewScreen from './screens/ContractorViewScreen';
+import ContractorSearchScreen from './screens/ContractorSearchScreen';
+import EstimateViewScreen, { EstimateListScreen } from './screens/EstimateViewScreen';
+// Category Dashboards
+import CommercialDashboard from './screens/CommercialDashboard';
+import MultiFamilyDashboard from './screens/MultiFamilyDashboard';
+import ApartmentDashboard from './screens/ApartmentDashboard';
+import DeveloperDashboard from './screens/DeveloperDashboard';
+import LandscapingDashboard from './screens/LandscapingDashboard';
+import FoodProviderDashboard from './screens/FoodProviderDashboard';
+import CareerOpportunitiesDashboard from './screens/CareerOpportunitiesDashboard';
+import EmploymentDashboard from './screens/EmploymentDashboard';
+import LaborPoolDashboard from './screens/LaborPoolDashboard';
+// Messaging
+import MessagingListScreen from './screens/MessagingListScreen';
+import ChatScreen from './screens/ChatScreen';
 import { revenueCatService } from './services/revenueCat';
+import { MockContractor, MockEstimate, mockContractors, mockEstimates } from './services/mockData';
 
-type Screen = 'home' | 'profile' | 'settings' | 'login' | 'register' | 'photoAnalysis' | 'blueprintAnalysis' | 'buildingCodes' | 'priceComparison' | 'findContractors' | 'permitAssistance' | 'help' | 'projectDetails' | 'newEstimate' | 'projectProfile' | 'contractorProfile';
+type Screen = 'home' | 'profile' | 'settings' | 'login' | 'register' | 'photoAnalysis' | 'blueprintAnalysis' | 'buildingCodes' | 'priceComparison' | 'findContractors' | 'permitAssistance' | 'help' | 'projectDetails' | 'newEstimate' | 'projectProfile' | 'contractorProfile' | 'contractorView' | 'contractorSearch' | 'estimateView' | 'estimateList' | 'commercial' | 'multiFamily' | 'apartment' | 'developer' | 'landscaping' | 'foodProvider' | 'careerOpportunities' | 'employment' | 'laborPool' | 'messaging' | 'chat';
 
 interface User {
   id: string;
@@ -30,6 +47,11 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('login');
   const [navigationStack, setNavigationStack] = useState<Screen[]>([]);
   const [user, setUser] = useState<User | null>(null);
+  
+  // State for passing data between screens
+  const [selectedContractor, setSelectedContractor] = useState<MockContractor | null>(null);
+  const [selectedEstimate, setSelectedEstimate] = useState<MockEstimate | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   // Initialize RevenueCat on app start
   useEffect(() => {
@@ -126,6 +148,69 @@ export default function App() {
       // Contractor Services
       case 'findContractors':
         return <FindContractorsScreen onBack={handleBack} />;
+      case 'contractorSearch':
+        return (
+          <ContractorSearchScreen
+            projectId={selectedProjectId || undefined}
+            onBack={handleBack}
+            onViewContractor={(contractor) => {
+              setSelectedContractor(contractor);
+              handleNavigate('contractorView');
+            }}
+          />
+        );
+      case 'contractorView':
+        return selectedContractor ? (
+          <ContractorViewScreen
+            contractor={selectedContractor}
+            onBack={handleBack}
+            onSendMessage={(contractorId) => {
+              alert(`Message feature coming soon! Contractor ID: ${contractorId}`);
+            }}
+            onRequestEstimate={(contractorId) => {
+              alert(`Estimate request sent to contractor ${contractorId}!`);
+            }}
+          />
+        ) : (
+          <HomeScreen onNavigate={handleNavigate} user={user} />
+        );
+      case 'estimateList':
+        return selectedProjectId ? (
+          <EstimateListScreen
+            projectId={selectedProjectId}
+            onBack={handleBack}
+            onViewEstimate={(estimate) => {
+              setSelectedEstimate(estimate);
+              handleNavigate('estimateView');
+            }}
+          />
+        ) : (
+          <HomeScreen onNavigate={handleNavigate} user={user} />
+        );
+      case 'estimateView':
+        return selectedEstimate ? (
+          <EstimateViewScreen
+            estimate={selectedEstimate}
+            onBack={handleBack}
+            onAccept={(estimateId) => {
+              alert(`Estimate ${estimateId} accepted!`);
+              handleBack();
+            }}
+            onReject={(estimateId) => {
+              alert(`Estimate ${estimateId} rejected.`);
+              handleBack();
+            }}
+            onContactContractor={(contractorId) => {
+              const contractor = mockContractors.find(c => c.id === contractorId);
+              if (contractor) {
+                setSelectedContractor(contractor);
+                handleNavigate('contractorView');
+              }
+            }}
+          />
+        ) : (
+          <HomeScreen onNavigate={handleNavigate} user={user} />
+        );
       case 'priceComparison':
         return <PriceComparisonScreen onBack={handleBack} />;
       case 'permitAssistance':
@@ -134,6 +219,32 @@ export default function App() {
       // Help & Support
       case 'help':
         return <HelpScreen onBack={handleBack} />;
+      
+      // Category Dashboards
+      case 'commercial':
+        return <CommercialDashboard onBack={handleBack} onNavigate={handleNavigate} />;
+      case 'multiFamily':
+        return <MultiFamilyDashboard onBack={handleBack} onNavigate={handleNavigate} />;
+      case 'apartment':
+        return <ApartmentDashboard onBack={handleBack} onNavigate={handleNavigate} />;
+      case 'developer':
+        return <DeveloperDashboard onBack={handleBack} onNavigate={handleNavigate} />;
+      case 'landscaping':
+        return <LandscapingDashboard onBack={handleBack} onNavigate={handleNavigate} />;
+      case 'foodProvider':
+        return <FoodProviderDashboard onBack={handleBack} onNavigate={handleNavigate} />;
+      case 'careerOpportunities':
+        return <CareerOpportunitiesDashboard onBack={handleBack} onNavigate={handleNavigate} />;
+      case 'employment':
+        return <EmploymentDashboard onBack={handleBack} onNavigate={handleNavigate} />;
+      case 'laborPool':
+        return <LaborPoolDashboard onBack={handleBack} onNavigate={handleNavigate} />;
+      
+      // Messaging
+      case 'messaging':
+        return <MessagingListScreen onBack={handleBack} onNavigate={handleNavigate} />;
+      case 'chat':
+        return <ChatScreen onBack={handleBack} />;
       
       default:
         return <HomeScreen onNavigate={handleNavigate} user={user} />;

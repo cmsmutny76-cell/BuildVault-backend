@@ -29,11 +29,11 @@ interface Address {
 }
 
 interface HomeScreenProps {
-  onNavigate: (screen: 'home' | 'profile' | 'settings' | 'contractorProfile' | 'projectProfile' | 'newEstimate' | 'projectDetails' | 'photoAnalysis' | 'blueprintAnalysis' | 'buildingCodes' | 'findContractors' | 'priceComparison' | 'permitAssistance' | 'help') => void;
+  onNavigate: (screen: 'home' | 'profile' | 'settings' | 'contractorProfile' | 'projectProfile' | 'newEstimate' | 'projectDetails' | 'photoAnalysis' | 'blueprintAnalysis' | 'buildingCodes' | 'findContractors' | 'priceComparison' | 'permitAssistance' | 'help' | 'contractorView' | 'contractorSearch' | 'estimateView' | 'estimateList' | 'commercial' | 'multiFamily' | 'apartment' | 'developer' | 'landscaping' | 'foodProvider' | 'careerOpportunities' | 'employment' | 'laborPool' | 'messaging') => void;
   user: { id: string; email: string; isContractor: boolean } | null;
 }
 
-type ProjectCategory = 'residential' | 'commercial' | 'multi-family' | 'apartment' | 'landscaping' | null;
+type ProjectCategory = 'residential' | 'commercial' | 'multi-family' | 'apartment' | 'landscaping' | 'career-opportunities' | 'labor-pool' | 'employment' | 'developer' | 'food-service' | null;
 
 export default function HomeScreen({ onNavigate, user }: HomeScreenProps) {
   const [menuVisible, setMenuVisible] = useState(false);
@@ -118,18 +118,45 @@ export default function HomeScreen({ onNavigate, user }: HomeScreenProps) {
   };
 
   const handleCategorySelect = (category: ProjectCategory) => {
-    if (category === 'residential') {
-      setSelectedCategory('residential');
-    } else {
-      Alert.alert(
-        'Coming Soon',
-        `${category?.charAt(0).toUpperCase()}${category?.slice(1).replace('-', ' ')} projects will be available in a future update.`,
-        [{ text: 'OK' }]
-      );
+    setMenuVisible(false);
+    switch (category) {
+      case 'residential':
+        // Residential dashboard coming soon - will use ResidentialDashboard
+        Alert.alert('Coming Soon', 'Residential projects dashboard will be available in a future update.');
+        break;
+      case 'commercial':
+        onNavigate('commercial');
+        break;
+      case 'multi-family':
+        onNavigate('multiFamily');
+        break;
+      case 'apartment':
+        onNavigate('apartment');
+        break;
+      case 'landscaping':
+        onNavigate('landscaping');
+        break;
+      case 'labor-pool':
+        onNavigate('laborPool');
+        break;
+      case 'employment':
+        onNavigate('employment');
+        break;
+      case 'career-opportunities':
+        onNavigate('careerOpportunities');
+        break;
+      case 'developer':
+        onNavigate('developer');
+        break;
+      case 'food-service':
+        onNavigate('foodProvider');
+        break;
+      default:
+        Alert.alert('Coming Soon', 'This category will be available soon.');
     }
   };
 
-  const handleMenuOption = (screen: 'profile' | 'settings' | 'contractorProfile' | 'projectProfile' | 'newEstimate' | 'projectDetails' | 'photoAnalysis' | 'blueprintAnalysis' | 'buildingCodes' | 'findContractors' | 'priceComparison' | 'permitAssistance' | 'help') => {
+  const handleMenuOption = (screen: 'profile' | 'settings' | 'contractorProfile' | 'projectProfile' | 'newEstimate' | 'projectDetails' | 'photoAnalysis' | 'blueprintAnalysis' | 'buildingCodes' | 'findContractors' | 'priceComparison' | 'permitAssistance' | 'help' | 'contractorView' | 'contractorSearch' | 'estimateView' | 'estimateList') => {
     setMenuVisible(false);
     onNavigate(screen);
   };
@@ -491,6 +518,96 @@ export default function HomeScreen({ onNavigate, user }: HomeScreenProps) {
               </View>
             </ImageBackground>
           </TouchableOpacity>
+
+          {/* Labor Pool */}
+          <TouchableOpacity
+            style={styles.categoryTile}
+            onPress={() => handleCategorySelect('labor-pool')}
+            activeOpacity={0.8}
+          >
+            <ImageBackground
+              source={{ uri: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&q=80' }}
+              style={styles.categoryImageBg}
+              resizeMode="cover"
+            >
+              <View style={styles.categoryOverlay}>
+                <Text style={styles.categoryTitle}>Labor Pool</Text>
+                <Text style={styles.categorySubtitle}>Find Workers & Crews</Text>
+              </View>
+            </ImageBackground>
+          </TouchableOpacity>
+
+          {/* Employment Opportunities */}
+          <TouchableOpacity
+            style={styles.categoryTile}
+            onPress={() => handleCategorySelect('employment')}
+            activeOpacity={0.8}
+          >
+            <ImageBackground
+              source={{ uri: 'https://images.unsplash.com/photo-1521791136064-7986c2920216?w=800&q=80' }}
+              style={styles.categoryImageBg}
+              resizeMode="cover"
+            >
+              <View style={styles.categoryOverlay}>
+                <Text style={styles.categoryTitle}>Employment</Text>
+                <Text style={styles.categorySubtitle}>Job Opportunities</Text>
+              </View>
+            </ImageBackground>
+          </TouchableOpacity>
+
+          {/* Developer */}
+          <TouchableOpacity
+            style={styles.categoryTile}
+            onPress={() => handleCategorySelect('developer')}
+            activeOpacity={0.8}
+          >
+            <ImageBackground
+              source={{ uri: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800&q=80' }}
+              style={styles.categoryImageBg}
+              resizeMode="cover"
+            >
+              <View style={styles.categoryOverlay}>
+                <Text style={styles.categoryTitle}>Developer</Text>
+                <Text style={styles.categorySubtitle}>Property Development</Text>
+              </View>
+            </ImageBackground>
+          </TouchableOpacity>
+
+          {/* Food Service */}
+          <TouchableOpacity
+            style={styles.categoryTile}
+            onPress={() => handleCategorySelect('food-service')}
+            activeOpacity={0.8}
+          >
+            <ImageBackground
+              source={{ uri: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=800&q=80' }}
+              style={styles.categoryImageBg}
+              resizeMode="cover"
+            >
+              <View style={styles.categoryOverlay}>
+                <Text style={styles.categoryTitle}>Food Service</Text>
+                <Text style={styles.categorySubtitle}>Construction Site Catering</Text>
+              </View>
+            </ImageBackground>
+          </TouchableOpacity>
+
+          {/* Career Opportunities */}
+          <TouchableOpacity
+            style={styles.categoryTile}
+            onPress={() => handleCategorySelect('career-opportunities')}
+            activeOpacity={0.8}
+          >
+            <ImageBackground
+              source={{ uri: 'https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=800&q=80' }}
+              style={styles.categoryImageBg}
+              resizeMode="cover"
+            >
+              <View style={styles.categoryOverlay}>
+                <Text style={styles.categoryTitle}>Career Opportunities</Text>
+                <Text style={styles.categorySubtitle}>Training & Development</Text>
+              </View>
+            </ImageBackground>
+          </TouchableOpacity>
         </View>
 
         {/* Info Section */}
@@ -669,6 +786,36 @@ export default function HomeScreen({ onNavigate, user }: HomeScreenProps) {
                     <Text style={styles.quickActionTitle}>Find Contractors</Text>
                     <Text style={styles.quickActionDescription}>
                       Connect with qualified professionals in your area
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {viewMode === 'homeowner' && (
+                <TouchableOpacity 
+                  style={[styles.quickActionCard, styles.demoCard]}
+                  onPress={() => handleMenuOption('contractorSearch')}
+                >
+                  <Text style={styles.quickActionIcon}>🎯</Text>
+                  <View style={styles.quickActionContent}>
+                    <Text style={styles.quickActionTitle}>AI Contractor Search (DEMO)</Text>
+                    <Text style={styles.quickActionDescription}>
+                      Search contractors with AI matching algorithm
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {viewMode === 'homeowner' && (
+                <TouchableOpacity 
+                  style={[styles.quickActionCard, styles.demoCard]}
+                  onPress={() => handleMenuOption('estimateList')}
+                >
+                  <Text style={styles.quickActionIcon}>💰</Text>
+                  <View style={styles.quickActionContent}>
+                    <Text style={styles.quickActionTitle}>View Estimates (DEMO)</Text>
+                    <Text style={styles.quickActionDescription}>
+                      See sample estimates with detailed breakdowns
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -1236,5 +1383,11 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  demoCard: {
+    backgroundColor: 'rgba(212, 175, 55, 0.15)',
+    borderWidth: 2,
+    borderColor: '#D4AF37',
+    borderStyle: 'dashed',
   },
 });

@@ -29,21 +29,32 @@ export default function LoginScreen({ onLogin, onNavigateToRegister }: LoginScre
     setLoading(true);
 
     try {
-      // For now, mock login - will connect to backend API later
-      // TODO: Call /api/auth/login endpoint
-      
-      // Mock successful login
-      setTimeout(() => {
+      const response = await fetch('http://localhost:3000/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Store token for future API calls
+        // TODO: Store token in AsyncStorage or SecureStore
         onLogin({
-          id: 'user_' + Date.now(),
-          email: email,
-          isContractor: email.includes('contractor'),
+          id: data.user.id,
+          email: data.user.email,
+          isContractor: data.user.isContractor,
         });
-        setLoading(false);
-      }, 1000);
+      } else {
+        Alert.alert('Login Failed', data.error || 'Invalid email or password');
+      }
     } catch (error) {
+      console.error('Login error:', error);
+      Alert.alert('Error', 'Unable to connect to server. Please try again.');
+    } finally {
       setLoading(false);
-      Alert.alert('Login Failed', 'Invalid email or password');
     }
   };
 
