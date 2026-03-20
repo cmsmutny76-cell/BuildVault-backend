@@ -128,8 +128,7 @@ export default function HomeScreen({ onNavigate, user, selectedProject }: HomeSc
     setMenuVisible(false);
     switch (category) {
       case 'residential':
-        // Residential dashboard coming soon - will use ResidentialDashboard
-        Alert.alert('Coming Soon', 'Residential projects dashboard will be available in a future update.');
+        setSelectedCategory('residential');
         break;
       case 'commercial':
         onNavigate('commercial');
