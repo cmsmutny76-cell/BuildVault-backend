@@ -273,7 +273,10 @@ const ContractorSearchScreen: React.FC<ContractorSearchScreenProps> = ({
         )}
       </View>
 
-      <TouchableOpacity style={styles.viewProfileButton}>
+      <TouchableOpacity
+        style={styles.viewProfileButton}
+        onPress={() => onViewContractor(contractor)}
+      >
         <Text style={styles.viewProfileText}>View Full Profile →</Text>
       </TouchableOpacity>
     </TouchableOpacity>
