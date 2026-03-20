@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Alert, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import type { Screen } from '../types/navigation';
 
 interface FoodVendorProfile {
   id: string;
@@ -21,7 +22,7 @@ interface FoodVendorProfile {
 
 interface FoodProviderDashboardProps {
   onBack: () => void;
-  onNavigate: (screen: string, params?: any) => void;
+  onNavigate: (screen: Screen, params?: unknown) => void;
 }
 
 export default function FoodProviderDashboard({ onBack, onNavigate }: FoodProviderDashboardProps) {

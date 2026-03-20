@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getUserProfile, updateUserProfile } from '../../../../lib/services/userProfileService';
 
 /**
  * GET /api/users/profile?userId=123
@@ -16,38 +17,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // TODO: Fetch from database
+    const profile = await getUserProfile(userId);
+    if (!profile) {
+      return NextResponse.json(
+        { success: false, error: 'User profile not found' },
+        { status: 404 }
+      );
+    }
 
-    // Mock user profile
-    const userProfile = {
-      id: userId,
-      firstName: 'John',
-      lastName: 'Doe',
-      email: 'john@example.com',
-      phone: '(555) 123-4567',
-      address: '123 Main St',
-      city: 'Los Angeles',
-      state: 'CA',
-      zipCode: '90001',
-      userType: 'contractor',
-      businessName: 'ABC Construction LLC',
-      licenseNumber: 'C-12345678',
-      serviceAreas: ['90001', '90002', '90003'],
-      specialties: ['Roofing', 'Flooring', 'Painting'],
-      subscription: {
-        status: 'trial',
-        trialEndsAt: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString(),
-        daysRemaining: 20,
-        plan: 'contractor_pro',
-        price: 49.99,
-      },
-      createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-    };
-
-    return NextResponse.json({
-      success: true,
-      profile: userProfile,
-    });
+    return NextResponse.json({ success: true, profile });
   } catch (error) {
     console.error('Profile fetch error:', error);
     return NextResponse.json(
@@ -58,22 +36,32 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * PUT /api/users/profile
- * Update user profile
+ * PATCH /api/users/profile
+ * Partially update user profile.
  */
-export async function PUT(request: NextRequest) {
+export async function PATCH(request: NextRequest) {
   try {
     const profileData = await request.json();
+    const userId = typeof profileData.userId === 'string' ? profileData.userId : '';
 
-    // TODO: Validate data
-    // TODO: Update database
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'userId is required' },
+        { status: 400 }
+      );
+    }
+
+    const profile = await updateUserProfile(profileData as Record<string, unknown>);
+    if (!profile) {
+      return NextResponse.json(
+        { success: false, error: 'User profile not found' },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      profile: {
-        ...profileData,
-        updatedAt: new Date().toISOString(),
-      },
+      profile,
       message: 'Profile updated successfully',
     });
   } catch (error) {
@@ -83,4 +71,12 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * PUT /api/users/profile
+ * Compatibility alias for full update callers.
+ */
+export async function PUT(request: NextRequest) {
+  return PATCH(request);
 }

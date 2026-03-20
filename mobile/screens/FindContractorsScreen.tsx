@@ -1,11 +1,20 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
+import type { Screen } from '../types/navigation';
 
 interface FindContractorsScreenProps {
   onBack: () => void;
+  onNavigate: (screen: Screen) => void;
+  selectedProjectTitle?: string;
+  hasSelectedProject: boolean;
 }
 
-export default function FindContractorsScreen({ onBack }: FindContractorsScreenProps) {
+export default function FindContractorsScreen({
+  onBack,
+  onNavigate,
+  selectedProjectTitle,
+  hasSelectedProject,
+}: FindContractorsScreenProps) {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content}>
@@ -21,7 +30,7 @@ export default function FindContractorsScreen({ onBack }: FindContractorsScreenP
         <View style={styles.card}>
           <Text style={styles.cardTitle}>👷 Find Verified Contractors</Text>
           <Text style={styles.description}>
-            Connect with licensed, insured contractors in your area.
+            Connect with licensed, insured contractors and get AI-ranked matches based on your selected project.
           </Text>
           
           <View style={styles.featureList}>
@@ -32,15 +41,23 @@ export default function FindContractorsScreen({ onBack }: FindContractorsScreenP
             <Text style={styles.featureItem}>✓ Request multiple quotes</Text>
           </View>
 
-          <View style={styles.comingSoonBadge}>
-            <Text style={styles.comingSoonText}>Coming Soon</Text>
+          <View style={styles.projectContextCard}>
+            <Text style={styles.projectContextTitle}>Project Context</Text>
+            <Text style={styles.projectContextText}>
+              {hasSelectedProject
+                ? `Using: ${selectedProjectTitle || 'Selected Project'}`
+                : 'No project selected. Choose one in Home before AI matching.'}
+            </Text>
           </View>
+
+          <TouchableOpacity style={styles.primaryButton} onPress={() => onNavigate('contractorSearch')}>
+            <Text style={styles.primaryButtonText}>Open Contractor Search</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.placeholder}>
           <Text style={styles.placeholderText}>
-            This feature will connect you with pre-screened contractors 
-            specializing in residential, commercial, landscaping, and remodeling projects.
+            Search supports both AI matching (project-based) and manual filters.
           </Text>
         </View>
       </ScrollView>
@@ -102,17 +119,35 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingLeft: 8,
   },
-  comingSoonBadge: {
-    backgroundColor: 'rgba(212, 175, 55, 0.2)',
+  projectContextCard: {
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.3)',
     borderRadius: 8,
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 16,
-    alignSelf: 'flex-start',
+    marginBottom: 12,
   },
-  comingSoonText: {
+  projectContextTitle: {
     color: '#D4AF37',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
+    marginBottom: 4,
+  },
+  projectContextText: {
+    color: '#cbd5e1',
+    fontSize: 13,
+  },
+  primaryButton: {
+    backgroundColor: '#D4AF37',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  primaryButtonText: {
+    color: '#0f172a',
+    fontSize: 15,
+    fontWeight: '800',
   },
   placeholder: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',

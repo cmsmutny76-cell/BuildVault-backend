@@ -1,84 +1,124 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-interface Material {
-  name: string;
-  quantity: string;
-  unit: string;
-}
-
-interface RetailerPrice {
-  retailer: string;
-  price: number;
-  url: string;
-  inStock: boolean;
-}
+import {
+  type EstimateLineItemInput,
+} from '../../../../lib/domain/estimate';
+import {
+  createEstimate,
+  generateMaterialQuote,
+  listProjectEstimates,
+  type MaterialQuoteRequest,
+} from '../../../../lib/services/estimateService';
+import { projectExists } from '../../../../lib/services/projectService';
 
 /**
- * POST /api/quotes/generate
- * Generate material quote with pricing from retailers
+ * GET /api/quotes/generate?projectId=xxx
+ * Compatibility shim. Use GET /api/estimates.
  */
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const { materials, projectType, zipCode } = await request.json();
+    const { searchParams } = new URL(request.url);
+    const projectId = searchParams.get('projectId');
 
-    if (!materials || !Array.isArray(materials)) {
+    if (!projectId) {
       return NextResponse.json(
-        { error: 'Materials list is required' },
+        { success: false, error: 'projectId is required' },
         { status: 400 }
       );
     }
 
-    // TODO: Implement actual price scraping
-    // For MVP, use mock pricing data
-    const quotedMaterials = materials.map((material: Material) => {
-      const basePrice = Math.random() * 100 + 20;
-      
-      return {
-        ...material,
-        prices: [
-          {
-            retailer: 'Home Depot',
-            price: basePrice,
-            url: 'https://www.homedepot.com/search?q=' + encodeURIComponent(material.name),
-            inStock: true,
-          },
-          {
-            retailer: 'Lowes',
-            price: basePrice * 0.95,
-            url: 'https://www.lowes.com/search?searchTerm=' + encodeURIComponent(material.name),
-            inStock: true,
-          },
-          {
-            retailer: 'Ace Hardware',
-            price: basePrice * 1.05,
-            url: 'https://www.acehardware.com/search?query=' + encodeURIComponent(material.name),
-            inStock: Math.random() > 0.3,
-          },
-        ],
-        bestPrice: basePrice * 0.95,
-        bestRetailer: 'Lowes',
-      };
+    return NextResponse.json({
+      success: true,
+      estimates: await listProjectEstimates(projectId),
+      deprecated: true,
+      replacement: '/api/estimates',
     });
-
-    const totalCost = quotedMaterials.reduce(
-      (sum: number, item: any) => sum + item.bestPrice,
-      0
+  } catch (error) {
+    console.error('Get estimates error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to retrieve estimates' },
+      { status: 500 }
     );
+  }
+}
 
-    const quote = {
-      id: Date.now(),
-      projectType,
-      zipCode,
-      materials: quotedMaterials,
-      totalCost: totalCost.toFixed(2),
-      generatedAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
-      note: 'Prices are estimates and may vary. Please verify current pricing with retailers.',
-    };
+/**
+ * POST /api/quotes/generate
+ * Compatibility shim. Use POST /api/estimates or POST /api/material-quotes/generate.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+
+    const isEstimateRequest =
+      Array.isArray(body.lineItems) &&
+      typeof body.projectId === 'string' &&
+      typeof body.contractorId === 'string' &&
+      typeof body.projectTitle === 'string';
+
+    if (isEstimateRequest) {
+      const {
+        projectId,
+        contractorId,
+        projectTitle,
+        lineItems,
+        notes,
+        validDays = 30,
+      }: {
+        projectId: string;
+        contractorId: string;
+        projectTitle: string;
+        lineItems: EstimateLineItemInput[];
+        notes?: string;
+        validDays?: number;
+      } = body;
+
+      if (!lineItems.length) {
+        return NextResponse.json(
+          { success: false, error: 'At least one line item is required' },
+          { status: 400 }
+        );
+      }
+
+      if (!(await projectExists(projectId))) {
+        return NextResponse.json(
+          { success: false, error: 'projectId does not exist' },
+          { status: 404 }
+        );
+      }
+
+      const estimate = await createEstimate({
+        projectId,
+        contractorId,
+        projectTitle,
+        lineItems,
+        notes,
+        validDays,
+      });
+
+      return NextResponse.json({
+        success: true,
+        estimate,
+        deprecated: true,
+        replacement: '/api/estimates',
+      });
+    }
+
+    const { materials, projectType, zipCode } = body as MaterialQuoteRequest;
+
+    if (!materials || !Array.isArray(materials)) {
+      return NextResponse.json(
+        { success: false, error: 'Materials list is required' },
+        { status: 400 }
+      );
+    }
+
+    const quote = generateMaterialQuote({ materials, projectType, zipCode });
 
     return NextResponse.json({
       success: true,
       quote,
+      deprecated: true,
+      replacement: '/api/material-quotes/generate',
     });
   } catch (error) {
     console.error('Quote generation error:', error);

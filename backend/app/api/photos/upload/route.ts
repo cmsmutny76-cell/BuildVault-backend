@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { uploadProjectPhoto } from '../../../../lib/services/photoUploadService';
+
+interface FormDataWithGet {
+  get(name: string): FormDataEntryValue | null;
+}
 
 /**
  * POST /api/photos/upload
@@ -6,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
+    const formData = (await request.formData()) as unknown as FormDataWithGet;
     const file = formData.get('photo') as File;
     const projectId = formData.get('projectId') as string;
 
@@ -17,17 +22,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // TODO: Upload to S3
-    // const s3Key = await uploadToS3(file);
-
-    // Mock response for MVP
-    const photoData = {
-      id: Date.now(),
-      projectId,
-      photoUrl: 'https://placeholder.com/photo.jpg',
-      s3Key: 'mock-s3-key',
-      uploadedAt: new Date().toISOString(),
-    };
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+    const photoData = await uploadProjectPhoto({
+      file,
+      projectId: typeof projectId === 'string' && projectId ? projectId : undefined,
+      baseUrl,
+    });
 
     return NextResponse.json({
       success: true,
@@ -35,8 +35,23 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Photo upload error:', error);
+
+    if (error instanceof Error) {
+      const isValidationError =
+        error.message === 'Uploaded file is empty' ||
+        error.message === 'Uploaded file exceeds the 10MB size limit' ||
+        error.message === 'Unsupported file type';
+
+      if (isValidationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: 400 }
+        );
+      }
+    }
+
     return NextResponse.json(
-      { error: 'Failed to upload photo' },
+      { success: false, error: 'Failed to upload photo' },
       { status: 500 }
     );
   }

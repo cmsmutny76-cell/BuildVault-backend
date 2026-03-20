@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Alert, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import type { Screen } from '../types/navigation';
 
 interface LandscaperProfile {
   id: string;
@@ -19,7 +20,7 @@ interface LandscaperProfile {
 
 interface LandscapingDashboardProps {
   onBack: () => void;
-  onNavigate: (screen: string, params?: any) => void;
+  onNavigate: (screen: Screen, params?: unknown) => void;
 }
 
 export default function LandscapingDashboard({ onBack, onNavigate }: LandscapingDashboardProps) {
@@ -413,8 +414,10 @@ export default function LandscapingDashboard({ onBack, onNavigate }: Landscaping
                   <TouchableOpacity 
                     style={styles.modalButton}
                     onPress={() => {
+                      const landscaperId = selectedLandscaper.id;
+                      const landscaperName = selectedLandscaper.name;
                       setSelectedLandscaper(null);
-                      Alert.alert('Contact', `Send message to ${selectedLandscaper.name}`);
+                      onNavigate('chat', { receiverId: landscaperId, contactName: landscaperName });
                     }}
                   >
                     <Text style={styles.modalButtonText}>Send Message</Text>
@@ -423,8 +426,9 @@ export default function LandscapingDashboard({ onBack, onNavigate }: Landscaping
                   <TouchableOpacity 
                     style={styles.modalButton}
                     onPress={() => {
+                      const landscaperId = selectedLandscaper.id;
                       setSelectedLandscaper(null);
-                      Alert.alert('Request Quote', 'Request a free estimate');
+                      onNavigate('newEstimate', { contractorId: landscaperId });
                     }}
                   >
                     <Text style={styles.modalButtonText}>Request Free Quote</Text>

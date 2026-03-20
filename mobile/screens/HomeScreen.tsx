@@ -29,13 +29,20 @@ interface Address {
 }
 
 interface HomeScreenProps {
-  onNavigate: (screen: 'home' | 'profile' | 'settings' | 'contractorProfile' | 'projectProfile' | 'newEstimate' | 'projectDetails' | 'photoAnalysis' | 'blueprintAnalysis' | 'buildingCodes' | 'findContractors' | 'priceComparison' | 'permitAssistance' | 'help' | 'contractorView' | 'contractorSearch' | 'estimateView' | 'estimateList' | 'commercial' | 'multiFamily' | 'apartment' | 'developer' | 'landscaping' | 'foodProvider' | 'careerOpportunities' | 'employment' | 'laborPool' | 'messaging') => void;
+  onNavigate: (screen: 'home' | 'profile' | 'settings' | 'contractorProfile' | 'projectProfile' | 'projectSelector' | 'newEstimate' | 'projectDetails' | 'photoAnalysis' | 'blueprintAnalysis' | 'buildingCodes' | 'findContractors' | 'priceComparison' | 'permitAssistance' | 'help' | 'contractorView' | 'contractorSearch' | 'estimateView' | 'estimateList' | 'commercial' | 'multiFamily' | 'apartment' | 'developer' | 'landscaping' | 'foodProvider' | 'careerOpportunities' | 'employment' | 'laborPool' | 'messaging') => void;
   user: { id: string; email: string; isContractor: boolean } | null;
+  selectedProject?: {
+    id: string;
+    title: string;
+    projectType: string;
+    location: { city: string; state: string };
+    status: string;
+  } | null;
 }
 
 type ProjectCategory = 'residential' | 'commercial' | 'multi-family' | 'apartment' | 'landscaping' | 'career-opportunities' | 'labor-pool' | 'employment' | 'developer' | 'food-service' | null;
 
-export default function HomeScreen({ onNavigate, user }: HomeScreenProps) {
+export default function HomeScreen({ onNavigate, user, selectedProject }: HomeScreenProps) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<ProjectCategory>(null);
   const [viewMode, setViewMode] = useState<'homeowner' | 'contractor'>(
@@ -419,6 +426,42 @@ export default function HomeScreen({ onNavigate, user }: HomeScreenProps) {
           resizeMode="stretch"
         >
           <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+            {/* Project Selector Banner */}
+            {!user?.isContractor && (
+              <TouchableOpacity
+                style={styles.projectBanner}
+                onPress={() => onNavigate('projectSelector')}
+                activeOpacity={0.8}
+              >
+                {selectedProject ? (
+                  <View style={styles.projectBannerContent}>
+                    <View style={styles.projectBannerLeft}>
+                      <Text style={styles.projectBannerLabel}>Active Project</Text>
+                      <Text style={styles.projectBannerTitle}>{selectedProject.title}</Text>
+                      <Text style={styles.projectBannerDetails}>
+                        {selectedProject.location.city}, {selectedProject.location.state} • {selectedProject.projectType}
+                      </Text>
+                    </View>
+                    <View style={styles.projectBannerRight}>
+                      <Text style={styles.projectBannerChange}>Change</Text>
+                      <Text style={styles.projectBannerArrow}>→</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.projectBannerContent}>
+                    <View style={styles.projectBannerLeft}>
+                      <Text style={styles.projectBannerIcon}>📋</Text>
+                      <View>
+                        <Text style={styles.projectBannerTitle}>No Project Selected</Text>
+                        <Text style={styles.projectBannerSubtitle}>Tap to select or create a project</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.projectBannerArrow}>→</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
+
             {/* Welcome Card */}
             <View style={styles.welcomeCard}>
               <Text style={styles.welcomeTitle}>Welcome {user?.email ? '👋' : ''}</Text>
@@ -1289,6 +1332,71 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingBottom: 40,
+  },
+  projectBanner: {
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 12,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 2,
+    borderColor: '#667eea',
+  },
+  projectBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  projectBannerLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  projectBannerIcon: {
+    fontSize: 32,
+  },
+  projectBannerLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  projectBannerTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1e293b',
+    marginBottom: 2,
+  },
+  projectBannerSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  projectBannerDetails: {
+    fontSize: 13,
+    color: '#64748b',
+  },
+  projectBannerRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  projectBannerChange: {
+    fontSize: 13,
+    color: '#667eea',
+    fontWeight: '600',
+  },
+  projectBannerArrow: {
+    fontSize: 24,
+    color: '#667eea',
+    fontWeight: '600',
   },
   welcomeCard: {
     backgroundColor: 'rgba(212, 175, 55, 0.1)',

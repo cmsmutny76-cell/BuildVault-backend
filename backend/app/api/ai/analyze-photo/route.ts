@@ -1,13 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
+interface FormDataWithGet {
+  get(name: string): FormDataEntryValue | null;
+}
+
 /**
  * POST /api/ai/analyze-photo
  * Analyze construction photo using OpenAI Vision API
  */
 export async function POST(request: NextRequest) {
   try {
-    const { photoUrl, projectType } = await request.json();
+    let photoUrl = '';
+    let projectType = 'construction';
+
+    const contentType = request.headers.get('content-type') || '';
+    if (contentType.includes('multipart/form-data')) {
+      const formData = (await request.formData()) as unknown as FormDataWithGet;
+      const file = formData.get('photo');
+      const formProjectType = formData.get('projectType');
+
+      if (typeof formProjectType === 'string' && formProjectType) {
+        projectType = formProjectType;
+      }
+
+      if (file instanceof File) {
+        const bytes = await file.arrayBuffer();
+        const base64 = Buffer.from(bytes).toString('base64');
+        photoUrl = `data:${file.type || 'image/jpeg'};base64,${base64}`;
+      }
+    } else {
+      const body = await request.json();
+      photoUrl = body.photoUrl || '';
+      projectType = body.projectType || 'construction';
+    }
 
     if (!photoUrl) {
       return NextResponse.json(
@@ -71,7 +97,7 @@ Provide the response in JSON format.`;
         analysis: analysisData,
         model: 'gpt-4o',
       });
-    } catch (aiError: any) {
+    } catch (aiError: unknown) {
       console.error('OpenAI API error:', aiError);
       
       // Return mock data if API fails (for MVP testing)

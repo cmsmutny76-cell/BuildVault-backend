@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import type { Screen } from '../types/navigation';
 
 interface CategoryDashboardProps {
   category: 'multi-family' | 'apartment' | 'landscaping' | 'labor-pool' | 'employment' | 'developer' | 'food-service';
   onBack: () => void;
-  onNavigate: (screen: string) => void;
+  onNavigate: (screen: Screen) => void;
 }
 
 const categoryConfig = {

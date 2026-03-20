@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
+interface FormDataWithGet {
+  get(name: string): FormDataEntryValue | null;
+}
+
 /**
  * POST /api/ai/analyze-blueprint
  * Analyze construction blueprints using OpenAI Vision API
@@ -8,7 +12,33 @@ import OpenAI from 'openai';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { blueprintUrl, location } = await request.json();
+    let blueprintUrl = '';
+    let location: { city?: string; county?: string; state?: string; zipCode?: string } | null = null;
+
+    const contentType = request.headers.get('content-type') || '';
+    if (contentType.includes('multipart/form-data')) {
+      const formData = (await request.formData()) as unknown as FormDataWithGet;
+      const file = formData.get('blueprint');
+      const locationRaw = formData.get('location');
+
+      if (typeof locationRaw === 'string' && locationRaw.trim()) {
+        try {
+          location = JSON.parse(locationRaw) as { city?: string; county?: string; state?: string; zipCode?: string };
+        } catch {
+          location = null;
+        }
+      }
+
+      if (file instanceof File) {
+        const bytes = await file.arrayBuffer();
+        const base64 = Buffer.from(bytes).toString('base64');
+        blueprintUrl = `data:${file.type || 'image/png'};base64,${base64}`;
+      }
+    } else {
+      const body = await request.json();
+      blueprintUrl = body.blueprintUrl || '';
+      location = body.location || null;
+    }
 
     if (!blueprintUrl) {
       return NextResponse.json(
@@ -120,7 +150,7 @@ Provide the response in JSON format with clear categories and quantities.`;
         model: 'gpt-4o',
         analysisType: 'blueprint',
       });
-    } catch (aiError: any) {
+    } catch (aiError: unknown) {
       console.error('OpenAI API error:', aiError);
       
       // Return mock blueprint data for testing

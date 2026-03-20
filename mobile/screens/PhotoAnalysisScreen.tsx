@@ -10,12 +10,16 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import api from '../services/api';
 
 interface PhotoAnalysisScreenProps {
   onBack: () => void;
+  currentUserId?: string;
+  isContractor?: boolean;
+  defaultProjectId?: string;
 }
 
-export default function PhotoAnalysisScreen({ onBack }: PhotoAnalysisScreenProps) {
+export default function PhotoAnalysisScreen({ onBack, currentUserId, isContractor, defaultProjectId }: PhotoAnalysisScreenProps) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
@@ -30,8 +34,9 @@ export default function PhotoAnalysisScreen({ onBack }: PhotoAnalysisScreenProps
         {
           text: 'Use Demo Photo',
           onPress: () => {
-            setSelectedImage('https://via.placeholder.com/400x300.png?text=Construction+Site');
-            analyzePhoto('demo_photo.jpg');
+            const demoUrl = 'https://via.placeholder.com/400x300.png?text=Construction+Site';
+            setSelectedImage(demoUrl);
+            analyzePhoto(demoUrl);
           },
         },
         { text: 'Cancel', style: 'cancel' },
@@ -44,22 +49,10 @@ export default function PhotoAnalysisScreen({ onBack }: PhotoAnalysisScreenProps
     setAnalysis(null);
 
     try {
-      // TODO: In a real app, upload the photo file first
-      // For now, just call the analysis endpoint with mock data
-      const response = await fetch('http://localhost:3000/api/ai/analyze-photo', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          photoUrl: photoUri,
-          projectType: 'renovation',
-        }),
-      });
+      const blob = await fetch(photoUri).then((res) => res.blob());
+      const data = await api.ai.analyzePhoto(blob, 'renovation');
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
+      if (data.success) {
         setAnalysis(data.analysis);
       } else {
         Alert.alert('Error', data.error || 'Failed to analyze photo');
@@ -75,26 +68,48 @@ export default function PhotoAnalysisScreen({ onBack }: PhotoAnalysisScreenProps
     if (!analysis) return;
 
     try {
-      const response = await fetch('http://localhost:3000/api/quotes/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          materials: analysis.materials,
-          projectType: 'renovation',
-        }),
+      const materials = Array.isArray(analysis.materials)
+        ? analysis.materials.map((material: { name: string; quantity?: string | number }) => ({
+            name: material.name,
+            quantity: String(material.quantity || 1),
+            unit: 'unit',
+          }))
+        : [];
+
+      if (isContractor && currentUserId && defaultProjectId) {
+        const data = await api.quote.generateEstimate({
+          projectId: defaultProjectId,
+          contractorId: currentUserId,
+          projectTitle: 'Renovation Estimate',
+          lineItems: materials.map((material: { name: string; quantity: string }) => ({
+            description: material.name,
+            quantity: Number(material.quantity) || 1,
+            unitPrice: 100,
+            category: 'materials' as const,
+          })),
+          notes: 'Generated from photo analysis',
+        });
+
+        if (data.success) {
+          Alert.alert(
+            'Estimate Created',
+            `Total Estimate: $${Number(data.estimate?.total || 0).toFixed(2)}`,
+            [{ text: 'OK' }]
+          );
+        }
+        return;
+      }
+
+      const quote = await api.quote.generateMaterialQuote({
+        materials,
+        projectType: 'renovation',
       });
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        Alert.alert(
-          'Price Quotes',
-          `Total Estimate: ${data.quotes.totalEstimate}\n\nQuotes from: Home Depot, Lowe's, Ace Hardware`,
-          [{ text: 'OK' }]
-        );
-      }
+      Alert.alert(
+        'Material Quote',
+        `Estimated material total: $${String(quote.quote?.totalCost || '0.00')}`,
+        [{ text: 'OK' }]
+      );
     } catch (error) {
       Alert.alert('Error', 'Unable to fetch quotes');
     }
@@ -150,16 +165,16 @@ export default function PhotoAnalysisScreen({ onBack }: PhotoAnalysisScreenProps
 
                 <View style={styles.card}>
                   <Text style={styles.cardTitle}>📋 Project Summary</Text>
-                  <Text style={styles.cardText}>{analysis.summary}</Text>
+                  <Text style={styles.cardText}>{analysis.summary || analysis.rawAnalysis || 'Analysis complete.'}</Text>
                 </View>
 
                 <View style={styles.card}>
                   <Text style={styles.cardTitle}>🔨 Materials Needed</Text>
-                  {analysis.materials.map((material: any, index: number) => (
+                  {(analysis.materials || []).map((material: { name: string; quantity?: string | number; unit?: string }, index: number) => (
                     <View key={index} style={styles.materialRow}>
                       <Text style={styles.materialName}>{material.name}</Text>
                       <Text style={styles.materialQuantity}>
-                        {material.quantity} {material.unit}
+                        {material.quantity || '-'} {material.unit || ''}
                       </Text>
                     </View>
                   ))}
@@ -167,16 +182,16 @@ export default function PhotoAnalysisScreen({ onBack }: PhotoAnalysisScreenProps
 
                 <View style={styles.card}>
                   <Text style={styles.cardTitle}>📏 Measurements</Text>
-                  {analysis.dimensions && (
+                  {(analysis.dimensions || analysis.measurements) && (
                     <>
                       <Text style={styles.measurementText}>
-                        Length: {analysis.dimensions.length}
+                        Length: {analysis.dimensions?.length || analysis.measurements?.dimensions || '-'}
                       </Text>
                       <Text style={styles.measurementText}>
-                        Width: {analysis.dimensions.width}
+                        Width: {analysis.dimensions?.width || '-'}
                       </Text>
                       <Text style={styles.measurementText}>
-                        Area: {analysis.dimensions.area}
+                        Area: {analysis.dimensions?.area || analysis.measurements?.estimatedArea || '-'}
                       </Text>
                     </>
                   )}
@@ -184,7 +199,7 @@ export default function PhotoAnalysisScreen({ onBack }: PhotoAnalysisScreenProps
 
                  <View style={styles.card}>
                   <Text style={styles.cardTitle}>💰 Estimated Cost</Text>
-                  <Text style={styles.costEstimate}>{analysis.estimatedCost}</Text>
+                  <Text style={styles.costEstimate}>{analysis.estimatedCost || 'Available after detailed estimate build'}</Text>
                   <Text style={styles.costNote}>
                     Based on average material prices. Actual costs may vary.
                   </Text>

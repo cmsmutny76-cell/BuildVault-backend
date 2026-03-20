@@ -1,34 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-
-// TODO: Replace with actual database query
-// For now, using mock database
-const mockUsers = new Map([
-  // Example: contractor@test.com / password123
-  ['contractor@test.com', {
-    id: 'user_1',
-    email: 'contractor@test.com',
-    passwordHash: '$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW', // "password123"
-    firstName: 'John',
-    lastName: 'Builder',
-    userType: 'contractor',
-    phone: '555-0123',
-    createdAt: new Date('2024-01-01'),
-    verified: true,
-  }],
-  ['homeowner@test.com', {
-    id: 'user_2',
-    email: 'homeowner@test.com',
-    passwordHash: '$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW', // "password123"
-    firstName: 'Jane',
-    lastName: 'Smith',
-    userType: 'homeowner',
-    phone: '555-0124',
-    createdAt: new Date('2024-01-02'),
-    verified: true,
-  }],
-]);
+import { getAuthUserByEmail } from '../../../../lib/services/authService';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -46,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find user
-    const user = mockUsers.get(email.toLowerCase());
+    const user = await getAuthUserByEmail(email);
     if (!user) {
       return NextResponse.json(
         { success: false, error: 'Invalid email or password' },

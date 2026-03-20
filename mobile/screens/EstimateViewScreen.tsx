@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MockEstimate, MockContractor, getContractorById, mockEstimates } from '../services/mockData';
+import { MockEstimate, getContractorById, mockEstimates } from '../services/mockData';
+import api from '../services/api';
 
 interface EstimateViewScreenProps {
   estimate: MockEstimate;
+  currentUserId?: string;
   onBack: () => void;
   onAccept: (estimateId: string) => void;
   onReject: (estimateId: string) => void;
@@ -13,21 +15,36 @@ interface EstimateViewScreenProps {
 
 const EstimateViewScreen: React.FC<EstimateViewScreenProps> = ({
   estimate,
+  currentUserId,
   onBack,
   onAccept,
   onReject,
   onContactContractor,
 }) => {
   const contractor = getContractorById(estimate.contractorId);
+  const contractorDisplayName = contractor?.companyName || contractor?.name || estimate.contractorId;
+  const contractorName = contractor?.name || estimate.contractorId;
+  const contractorContactId = contractor?.id || estimate.contractorId;
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['labor', 'materials']));
+  const [revisions, setRevisions] = useState<Array<{ id: string; reason: string; createdAt: string }>>([]);
 
-  if (!contractor) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Contractor not found</Text>
-      </View>
-    );
-  }
+  const loadRevisions = async () => {
+    try {
+      const response = await api.quote.getRevisions(estimate.id);
+      const items = (response.revisions || []).map((item: { id: string; reason: string; createdAt: string }) => ({
+        id: item.id,
+        reason: item.reason,
+        createdAt: item.createdAt,
+      }));
+      setRevisions(items);
+    } catch {
+      setRevisions([]);
+    }
+  };
+
+  useEffect(() => {
+    void loadRevisions();
+  }, [estimate.id]);
 
   const toggleCategory = (category: string) => {
     const newExpanded = new Set(expandedCategories);
@@ -68,7 +85,7 @@ const EstimateViewScreen: React.FC<EstimateViewScreenProps> = ({
   const handleAccept = () => {
     Alert.alert(
       'Accept Estimate?',
-      `Are you sure you want to accept this $${estimate.total.toLocaleString()} estimate from ${contractor.companyName}?`,
+      `Are you sure you want to accept this $${estimate.total.toLocaleString()} estimate from ${contractorDisplayName}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -93,6 +110,24 @@ const EstimateViewScreen: React.FC<EstimateViewScreenProps> = ({
         },
       ]
     );
+  };
+
+  const handleAddRevision = async () => {
+    try {
+      const response = await api.quote.addRevision({
+        estimateId: estimate.id,
+        projectId: estimate.projectId,
+        updatedBy: currentUserId || 'homeowner',
+        reason: 'Requested pricing adjustment',
+        changes: [{ field: 'total', before: estimate.total, after: estimate.total * 0.95 }],
+      });
+
+      if (response.success) {
+        await loadRevisions();
+      }
+    } catch {
+      Alert.alert('Revisions', 'Unable to add revision entry right now.');
+    }
   };
 
   const categoryIcons: { [key: string]: string } = {
@@ -141,16 +176,18 @@ const EstimateViewScreen: React.FC<EstimateViewScreenProps> = ({
             <Text style={styles.sectionTitle}>From Contractor:</Text>
             <View style={styles.contractorInfo}>
               <View style={styles.contractorDetails}>
-                <Text style={styles.contractorName}>{contractor.name}</Text>
-                <Text style={styles.companyName}>{contractor.companyName}</Text>
-                <View style={styles.ratingRow}>
-                  <Text style={styles.starRating}>★ {contractor.rating.toFixed(1)}</Text>
-                  <Text style={styles.reviewCount}>({contractor.reviewCount} reviews)</Text>
-                </View>
+                <Text style={styles.contractorName}>{contractorName}</Text>
+                <Text style={styles.companyName}>{contractorDisplayName}</Text>
+                {contractor && (
+                  <View style={styles.ratingRow}>
+                    <Text style={styles.starRating}>★ {contractor.rating.toFixed(1)}</Text>
+                    <Text style={styles.reviewCount}>({contractor.reviewCount} reviews)</Text>
+                  </View>
+                )}
               </View>
               <TouchableOpacity
                 style={styles.contactButton}
-                onPress={() => onContactContractor(contractor.id)}
+                onPress={() => onContactContractor(contractorContactId)}
               >
                 <Text style={styles.contactButtonText}>💬 Contact</Text>
               </TouchableOpacity>
@@ -239,6 +276,9 @@ const EstimateViewScreen: React.FC<EstimateViewScreenProps> = ({
           {/* Action Buttons */}
           {estimate.status === 'sent' && (
             <View style={styles.actionButtons}>
+              <TouchableOpacity style={styles.rejectButton} onPress={handleAddRevision}>
+                <Text style={styles.rejectButtonText}>📝 Add Revision</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={styles.rejectButton} onPress={handleReject}>
                 <Text style={styles.rejectButtonText}>✗ Reject</Text>
               </TouchableOpacity>
@@ -247,6 +287,20 @@ const EstimateViewScreen: React.FC<EstimateViewScreenProps> = ({
               </TouchableOpacity>
             </View>
           )}
+
+          <View style={styles.notesSection}>
+            <Text style={styles.sectionTitle}>Revision History ({revisions.length})</Text>
+            {revisions.length ? (
+              revisions.map((revision) => (
+                <View key={revision.id} style={styles.lineItem}>
+                  <Text style={styles.lineItemDescription}>{revision.reason}</Text>
+                  <Text style={styles.metadataText}>{new Date(revision.createdAt).toLocaleString()}</Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.metadataText}>No revisions yet.</Text>
+            )}
+          </View>
 
           {estimate.status === 'accepted' && (
             <View style={styles.acceptedMessage}>
@@ -285,16 +339,64 @@ const EstimateViewScreen: React.FC<EstimateViewScreenProps> = ({
 // List view for all estimates of a project
 interface EstimateListScreenProps {
   projectId: string;
+  currentUserId?: string;
   onBack: () => void;
   onViewEstimate: (estimate: MockEstimate) => void;
 }
 
 export const EstimateListScreen: React.FC<EstimateListScreenProps> = ({
   projectId,
+  currentUserId,
   onBack,
   onViewEstimate,
 }) => {
-  const projectEstimates = mockEstimates.filter(e => e.projectId === projectId);
+  const [projectEstimates, setProjectEstimates] = useState<MockEstimate[]>([]);
+
+  useEffect(() => {
+    const loadEstimates = async () => {
+      try {
+        const response = await api.quote.getEstimates(projectId);
+        const mapped: MockEstimate[] = (response.estimates || []).map((estimate: {
+          id: string;
+          projectId: string;
+          contractorId: string;
+          status: 'draft' | 'sent' | 'accepted' | 'rejected';
+          lineItems: Array<{
+            id: string;
+            description: string;
+            quantity: number;
+            unitPrice: number;
+            total: number;
+            category: 'labor' | 'materials' | 'equipment' | 'permits' | 'other';
+          }>;
+          subtotal: number;
+          tax: number;
+          total: number;
+          validUntil: string;
+          notes?: string;
+          createdAt: string;
+        }) => ({
+          id: estimate.id,
+          projectId: estimate.projectId,
+          contractorId: estimate.contractorId,
+          status: estimate.status,
+          lineItems: estimate.lineItems,
+          subtotal: estimate.subtotal,
+          tax: estimate.tax,
+          total: estimate.total,
+          validUntil: estimate.validUntil,
+          notes: estimate.notes || '',
+          createdAt: estimate.createdAt,
+        }));
+
+        setProjectEstimates(mapped);
+      } catch {
+        setProjectEstimates(mockEstimates.filter((estimate) => estimate.projectId === projectId));
+      }
+    };
+
+    void loadEstimates();
+  }, [projectId, currentUserId]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -327,7 +429,7 @@ export const EstimateListScreen: React.FC<EstimateListScreenProps> = ({
           {projectEstimates.length > 0 ? (
             projectEstimates.map((estimate) => {
               const contractor = getContractorById(estimate.contractorId);
-              if (!contractor) return null;
+              const contractorName = contractor?.companyName || contractor?.name || estimate.contractorId;
 
               return (
                 <TouchableOpacity
@@ -337,7 +439,7 @@ export const EstimateListScreen: React.FC<EstimateListScreenProps> = ({
                 >
                   <View style={styles.estimateCardHeader}>
                     <View>
-                      <Text style={styles.estimateContractor}>{contractor.companyName}</Text>
+                      <Text style={styles.estimateContractor}>{contractorName}</Text>
                       <Text style={styles.estimateDate}>
                         {new Date(estimate.createdAt).toLocaleDateString()}
                       </Text>

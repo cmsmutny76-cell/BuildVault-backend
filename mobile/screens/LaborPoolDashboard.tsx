@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Alert, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import type { Screen } from '../types/navigation';
 
 interface Worker {
   id: string;
@@ -23,7 +24,7 @@ interface Worker {
 
 interface LaborPoolDashboardProps {
   onBack: () => void;
-  onNavigate: (screen: string, params?: any) => void;
+  onNavigate: (screen: Screen, params?: unknown) => void;
 }
 
 export default function LaborPoolDashboard({ onBack, onNavigate }: LaborPoolDashboardProps) {
@@ -551,8 +552,9 @@ export default function LaborPoolDashboard({ onBack, onNavigate }: LaborPoolDash
                     style={[styles.modalButton, selectedWorker.availability !== 'available' && styles.modalButtonDisabled]}
                     onPress={() => {
                       if (selectedWorker.availability === 'available') {
+                        const workerId = selectedWorker.id;
                         setSelectedWorker(null);
-                        Alert.alert('Hire Worker', `Contact ${selectedWorker.name} for immediate hire`);
+                        onNavigate('newEstimate', { contractorId: workerId });
                       } else {
                         Alert.alert('Not Available', 'This worker is currently unavailable');
                       }
@@ -566,8 +568,10 @@ export default function LaborPoolDashboard({ onBack, onNavigate }: LaborPoolDash
                   <TouchableOpacity 
                     style={styles.modalButton}
                     onPress={() => {
+                      const workerId = selectedWorker.id;
+                      const workerName = selectedWorker.name;
                       setSelectedWorker(null);
-                      Alert.alert('Message', `Send message to ${selectedWorker.name}`);
+                      onNavigate('chat', { receiverId: workerId, contactName: workerName });
                     }}
                   >
                     <Text style={styles.modalButtonText}>Send Message</Text>

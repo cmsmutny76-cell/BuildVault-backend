@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, TextInput, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 interface Message {
@@ -10,85 +10,140 @@ interface Message {
   read: boolean;
 }
 
-interface Conversation {
-  id: string;
-  name: string;
-  lastMessage: string;
-  timestamp: string;
-  unread: number;
-  avatar: string;
-  online: boolean;
-}
-
 interface ChatScreenProps {
   onBack: () => void;
   conversationId?: string;
   contactName?: string;
+  currentUserId: string;
 }
 
-export default function ChatScreen({ onBack, conversationId = '1', contactName = 'Mike Johnson' }: ChatScreenProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      text: 'Hi, I saw your project listing. Are you still looking for a contractor?',
-      sender: 'user',
-      timestamp: '10:30 AM',
-      read: true
-    },
-    {
-      id: '2',
-      text: 'Yes! I need help with a kitchen remodel. Are you available for a site visit?',
-      sender: 'other',
-      timestamp: '10:32 AM',
-      read: true
-    },
-    {
-      id: '3',
-      text: 'Absolutely. I have availability this Thursday or Friday afternoon. What works best for you?',
-      sender: 'user',
-      timestamp: '10:35 AM',
-      read: true
-    },
-    {
-      id: '4',
-      text: 'Friday at 2pm would be perfect. My address is 123 Main Street, Los Angeles.',
-      sender: 'other',
-      timestamp: '10:37 AM',
-      read: true
-    },
-    {
-      id: '5',
-      text: 'Great! I\'ll see you Friday at 2pm. I\'ll bring some material samples and design ideas.',
-      sender: 'user',
-      timestamp: '10:40 AM',
-      read: true
-    },
-    {
-      id: '6',
-      text: 'Perfect. Looking forward to it!',
-      sender: 'other',
-      timestamp: '10:42 AM',
-      read: true
-    },
-  ]);
+// Helper to format message timestamp
+function formatMessageTime(isoString: string): string {
+  const date = new Date(isoString);
+  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
 
+export default function ChatScreen({ onBack, conversationId = '1', contactName = 'Mike Johnson', currentUserId }: ChatScreenProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
 
-  const sendMessage = () => {
+  useEffect(() => {
+    fetchMessages();
+  }, [conversationId, currentUserId]);
+
+  const fetchMessages = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`http://localhost:3000/api/messages?userId=${currentUserId}&conversationId=${conversationId}`);
+      const data = await response.json();
+
+      if (data.success && data.messages) {
+        // Transform API messages to our Message interface
+        const transformed: Message[] = data.messages.map((msg: any) => ({
+          id: msg.id,
+          text: msg.content,
+          sender: msg.senderId === currentUserId ? 'user' : 'other',
+          timestamp: formatMessageTime(msg.timestamp),
+          read: msg.read,
+        }));
+
+        setMessages(transformed);
+      } else {
+        // Empty conversation
+        setMessages([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch messages:', error);
+      setMessages([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendMessage = async () => {
     if (newMessage.trim() === '') return;
 
-    const message: Message = {
-      id: (messages.length + 1).toString(),
-      text: newMessage,
-      sender: 'user',
-      timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-      read: false
-    };
-
-    setMessages([...messages, message]);
+    const messageText = newMessage.trim();
     setNewMessage('');
+    setSending(true);
+
+    try {
+      // Optimistically add message to UI
+      const tempMessage: Message = {
+        id: 'temp_' + Date.now(),
+        text: messageText,
+        sender: 'user',
+        timestamp: formatMessageTime(new Date().toISOString()),
+        read: false,
+      };
+
+      setMessages(prev => [...prev, tempMessage]);
+
+      // Send to API
+      const response = await fetch('http://localhost:3000/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId,
+          senderId: currentUserId,
+          receiverId: 'user_2', // TODO: Get from conversation data
+          content: messageText,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.message) {
+        // Replace temp message with server message
+        setMessages(prev => prev.map(msg => 
+          msg.id === tempMessage.id 
+            ? {
+                id: data.message.id,
+                text: data.message.content,
+                sender: 'user',
+                timestamp: formatMessageTime(data.message.timestamp),
+                read: false,
+              }
+            : msg
+        ));
+      }
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      // Could show error toast here
+    } finally {
+      setSending(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <ImageBackground
+        source={{ uri: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=1200&q=80' }}
+        style={styles.backgroundImage}
+        blurRadius={8}
+      >
+        <LinearGradient
+          colors={['rgba(0,0,0,0.9)', 'rgba(0,0,0,0.95)']}
+          style={styles.container}
+        >
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onBack} style={styles.backButton}>
+              <Text style={styles.backButtonText}>← Back</Text>
+            </TouchableOpacity>
+            <View style={styles.contactInfo}>
+              <Text style={styles.contactName}>{contactName}</Text>
+            </View>
+          </View>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#D4AF37" />
+            <Text style={styles.loadingText}>Loading messages...</Text>
+          </View>
+        </LinearGradient>
+      </ImageBackground>
+    );
+  }
 
   return (
     <ImageBackground
@@ -166,22 +221,7 @@ export default function ChatScreen({ onBack, conversationId = '1', contactName =
             </View>
           ))}
 
-          {isTyping && (
-            <View style={styles.typingIndicator}>
-              <View style={styles.messageAvatar}>
-                <Text style={styles.messageAvatarText}>
-                  {contactName.split(' ').map(n => n[0]).join('')}
-                </Text>
-              </View>
-              <View style={styles.typingBubble}>
-                <View style={styles.typingDots}>
-                  <View style={styles.typingDot} />
-                  <View style={[styles.typingDot, styles.typingDot2]} />
-                  <View style={[styles.typingDot, styles.typingDot3]} />
-                </View>
-              </View>
-            </View>
-          )}
+          {/* Typing indicator - TODO: implement */}
         </ScrollView>
 
         {/* Input */}
@@ -420,5 +460,15 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontSize: 15,
     fontWeight: '700',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#CCCCCC',
   },
 });

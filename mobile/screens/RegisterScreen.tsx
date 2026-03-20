@@ -14,9 +14,10 @@ import {
 interface RegisterScreenProps {
   onRegister: (user: { id: string; email: string; isContractor: boolean }) => void;
   onNavigateToLogin: () => void;
+  onNavigateToEmailVerification: (email: string) => void;
 }
 
-export default function RegisterScreen({ onRegister, onNavigateToLogin }: RegisterScreenProps) {
+export default function RegisterScreen({ onRegister, onNavigateToLogin, onNavigateToEmailVerification }: RegisterScreenProps) {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -67,24 +68,8 @@ export default function RegisterScreen({ onRegister, onNavigateToLogin }: Regist
       const data = await response.json();
 
       if (response.ok && data.success) {
-        Alert.alert(
-          'Success!',
-          formData.isContractor
-            ? 'Account created! Your 30-day free trial has started.'
-            : 'Account created successfully!',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                onRegister({
-                  id: data.user.id,
-                  email: formData.email,
-                  isContractor: formData.isContractor,
-                });
-              },
-            },
-          ]
-        );
+        // Navigate to email verification screen
+        onNavigateToEmailVerification(formData.email);
       } else {
         Alert.alert('Registration Failed', data.error || 'Please try again');
       }

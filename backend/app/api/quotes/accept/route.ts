@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { acceptEstimate } from '../../../../lib/services/estimateAcceptanceService';
 
 interface AcceptEstimateRequest {
   estimateId: string;
@@ -22,28 +23,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // TODO: Fetch estimate from database
-    // TODO: Verify estimate belongs to project
-    // TODO: Check estimate is still valid
-    // TODO: Create project agreement
-    // TODO: Update project status to 'in-progress'
-    // TODO: Send notifications to contractor and homeowner
-    // TODO: Reject all other pending estimates for this project
+    const result = await acceptEstimate({ estimateId, userId, projectId });
 
-    const agreement = {
-      id: 'agr_' + Date.now(),
-      estimateId,
-      projectId,
-      userId,
-      status: 'active',
-      acceptedAt: new Date().toISOString(),
-      startDate: new Date().toISOString(),
-      expectedCompletionDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
-    };
+    if (!result.success) {
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: result.status }
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      agreement,
+      agreement: result.agreement,
       message: 'Estimate accepted successfully',
     });
   } catch (error) {

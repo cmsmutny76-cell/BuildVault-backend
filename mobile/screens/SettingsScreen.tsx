@@ -7,18 +7,38 @@ import {
   ScrollView,
   Switch,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
+import api from '../services/api';
 
 interface SettingsScreenProps {
   onBack: () => void;
   onLogout: () => void;
+  currentUserId?: string;
+  isContractor?: boolean;
 }
 
-export default function SettingsScreen({ onBack, onLogout }: SettingsScreenProps) {
+export default function SettingsScreen({ onBack, onLogout, currentUserId, isContractor }: SettingsScreenProps) {
   const [notifications, setNotifications] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [autoSave, setAutoSave] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [availability, setAvailability] = useState<'available' | 'busy' | 'booked'>('available');
+
+  const handleSetAvailability = async (nextAvailability: 'available' | 'busy' | 'booked') => {
+    setAvailability(nextAvailability);
+
+    try {
+      if (!currentUserId || !isContractor) {
+        Alert.alert('Availability update', 'Availability is only available for contractor accounts.');
+        return;
+      }
+
+      await api.contractor.setAvailability(currentUserId, nextAvailability);
+    } catch (error) {
+      Alert.alert('Availability update', 'Unable to sync availability right now.');
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -100,6 +120,26 @@ export default function SettingsScreen({ onBack, onLogout }: SettingsScreenProps
             />
           </View>
         </View>
+
+        {isContractor && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Contractor Availability</Text>
+            <Text style={styles.settingDescription}>Current status influences AI matching results.</Text>
+            <View style={styles.availabilityRow}>
+              {(['available', 'busy', 'booked'] as const).map((status) => (
+                <TouchableOpacity
+                  key={status}
+                  style={[styles.availabilityChip, availability === status && styles.availabilityChipActive]}
+                  onPress={() => handleSetAvailability(status)}
+                >
+                  <Text style={[styles.availabilityChipText, availability === status && styles.availabilityChipTextActive]}>
+                    {status}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Account Section */}
         <View style={styles.section}>
@@ -280,5 +320,30 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     letterSpacing: 0.3,
+  },
+  availabilityRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  availabilityChip: {
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  availabilityChipActive: {
+    borderColor: '#3b82f6',
+    backgroundColor: 'rgba(59,130,246,0.12)',
+  },
+  availabilityChipText: {
+    color: '#475569',
+    fontWeight: '600',
+    fontSize: 12,
+    textTransform: 'capitalize',
+  },
+  availabilityChipTextActive: {
+    color: '#1d4ed8',
   },
 });

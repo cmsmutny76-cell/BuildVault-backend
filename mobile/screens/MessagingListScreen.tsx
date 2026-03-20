@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 interface Conversation {
@@ -14,75 +14,106 @@ interface Conversation {
 
 interface MessagingListScreenProps {
   onBack: () => void;
-  onNavigate: (screen: string, params?: any) => void;
+  onNavigate: (screen: any, params?: any) => void;
+  currentUserId: string;
 }
 
-export default function MessagingListScreen({ onBack, onNavigate }: MessagingListScreenProps) {
-  const [conversations, setConversations] = useState<Conversation[]>([
-    {
-      id: '1',
-      name: 'Mike Johnson',
-      lastMessage: 'Great! I\'ll see you Friday at 2pm.',
-      timestamp: '10:40 AM',
-      unread: 0,
-      avatar: 'MJ',
-      online: true
-    },
-    {
-      id: '2',
-      name: 'Premium Build Construction',
-      lastMessage: 'We can start the project next Monday if that works for you.',
-      timestamp: 'Yesterday',
-      unread: 2,
-      avatar: 'PB',
-      online: false
-    },
-    {
-      id: '3',
-      name: 'Sarah Martinez - Bright Star Electric',
-      lastMessage: 'I\'m sending over the revised electrical quote.',
-      timestamp: 'Yesterday',
-      unread: 1,
-      avatar: 'SM',
-      online: true
-    },
-    {
-      id: '4',
-      name: 'David Chen',
-      lastMessage: 'Thanks for choosing us! Looking forward to starting your project.',
-      timestamp: 'Tuesday',
-      unread: 0,
-      avatar: 'DC',
-      online: false
-    },
-    {
-      id: '5',
-      name: 'Master Flow Plumbing',
-      lastMessage: 'The permit was approved. We can schedule the rough-in.',
-      timestamp: 'Monday',
-      unread: 3,
-      avatar: 'MF',
-      online: true
-    },
-    {
-      id: '6',
-      name: 'Jennifer Lee',
-      lastMessage: 'I have some material samples to show you.',
-      timestamp: 'Last week',
-      unread: 0,
-      avatar: 'JL',
-      online: false
-    },
-    {
-      id: '7',
-      name: 'Tom Rivera - Climate Control',
-      lastMessage: 'Your HVAC system is ready for installation.',
-      timestamp: 'Last week',
-      unread: 0,
-      avatar: 'TR',
-      online: false
-    },
-  ]);
+// Helper function to format timestamp
+function formatTimestamp(isoString: string): string {
+  const date = new Date(isoString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 60) {
+    return `${diffMins}m ago`;
+  } else if (diffHours < 24) {
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  } else if (diffDays === 1) {
+    return 'Yesterday';
+  } else if (diffDays < 7) {
+    return date.toLocaleDateString('en-US', { weekday: 'long' });
+  } else {
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+}
+
+// Helper to get initials from name
+function getInitials(name: string): string {
+  return name.split(' ').map(n => n[0]).join('').toUpperCase();
+}
+
+export default function MessagingListScreen({ onBack, onNavigate, currentUserId }: MessagingListScreenProps) {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchConversations();
+  }, [currentUserId]);
+
+  const fetchConversations = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await fetch(`http://localhost:3000/api/messages?userId=${currentUserId}`);
+      const data = await response.json();
+
+      if (data.success && data.conversations) {
+        // Transform API response to match our Conversation interface
+        const transformed: Conversation[] = data.conversations.map((conv: any) => ({
+          id: conv.id,
+          name: conv.participantInfo?.name || 'Unknown User',
+          lastMessage: conv.lastMessage?.content || 'No messages yet',
+          timestamp: formatTimestamp(conv.lastMessage?.timestamp || new Date().toISOString()),
+          unread: conv.unreadCount || 0,
+          avatar: getInitials(conv.participantInfo?.name || 'Unknown'),
+          online: false, // TODO: Implement online status
+        }));
+
+        setConversations(transformed);
+      } else {
+        // If API returns error or no conversations, show empty state
+        setConversations([]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch conversations:', err);
+      setError('Failed to load conversations');
+      // Keep showing empty array instead of error to maintain UX
+      setConversations([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <ImageBackground
+        source={{ uri: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=1200&q=80' }}
+        style={styles.backgroundImage}
+        blurRadius={5}
+      >
+        <LinearGradient
+          colors={['rgba(0,0,0,0.85)', 'rgba(0,0,0,0.9)']}
+          style={styles.container}
+        >
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onBack} style={styles.backButton}>
+              <Text style={styles.backButtonText}>← Back to Home</Text>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Messages</Text>
+          </View>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#D4AF37" />
+            <Text style={styles.loadingText}>Loading conversations...</Text>
+          </View>
+        </LinearGradient>
+      </ImageBackground>
+    );
+  }
 
   const unreadCount = conversations.reduce((sum, conv) => sum + conv.unread, 0);
 
@@ -133,41 +164,51 @@ export default function MessagingListScreen({ onBack, onNavigate }: MessagingLis
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Recent Conversations</Text>
 
-            {conversations.map((conversation) => (
-              <TouchableOpacity
-                key={conversation.id}
-                style={styles.conversationCard}
-                onPress={() => onNavigate('chat', { conversationId: conversation.id, contactName: conversation.name })}
-              >
-                <View style={styles.conversationAvatar}>
-                  <Text style={styles.conversationAvatarText}>{conversation.avatar}</Text>
-                  {conversation.online && <View style={styles.onlineIndicator} />}
-                </View>
+            {conversations.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateIcon}>💬</Text>
+                <Text style={styles.emptyStateTitle}>No Messages Yet</Text>
+                <Text style={styles.emptyStateText}>
+                  Start a conversation with a contractor or wait for them to reach out
+                </Text>
+              </View>
+            ) : (
+              conversations.map((conversation) => (
+                <TouchableOpacity
+                  key={conversation.id}
+                  style={styles.conversationCard}
+                  onPress={() => onNavigate('chat', { conversationId: conversation.id, contactName: conversation.name })}
+                >
+                  <View style={styles.conversationAvatar}>
+                    <Text style={styles.conversationAvatarText}>{conversation.avatar}</Text>
+                    {conversation.online && <View style={styles.onlineIndicator} />}
+                  </View>
 
-                <View style={styles.conversationContent}>
-                  <View style={styles.conversationHeader}>
-                    <Text style={styles.conversationName}>{conversation.name}</Text>
-                    <Text style={styles.conversationTime}>{conversation.timestamp}</Text>
+                  <View style={styles.conversationContent}>
+                    <View style={styles.conversationHeader}>
+                      <Text style={styles.conversationName}>{conversation.name}</Text>
+                      <Text style={styles.conversationTime}>{conversation.timestamp}</Text>
+                    </View>
+                    <View style={styles.conversationFooter}>
+                      <Text 
+                        style={[
+                          styles.conversationMessage,
+                          conversation.unread > 0 && styles.conversationMessageUnread
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {conversation.lastMessage}
+                      </Text>
+                      {conversation.unread > 0 && (
+                        <View style={styles.unreadBadge}>
+                          <Text style={styles.unreadBadgeText}>{conversation.unread}</Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
-                  <View style={styles.conversationFooter}>
-                    <Text 
-                      style={[
-                        styles.conversationMessage,
-                        conversation.unread > 0 && styles.conversationMessageUnread
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {conversation.lastMessage}
-                    </Text>
-                    {conversation.unread > 0 && (
-                      <View style={styles.unreadBadge}>
-                        <Text style={styles.unreadBadgeText}>{conversation.unread}</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
+                </TouchableOpacity>
+              ))
+            )}
           </View>
 
           {/* Quick Actions */}
@@ -421,6 +462,37 @@ const styles = StyleSheet.create({
   infoBannerText: {
     fontSize: 14,
     color: '#FFFFFF',
+    lineHeight: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#CCCCCC',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyStateIcon: {
+    fontSize: 60,
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: '#CCCCCC',
+    textAlign: 'center',
     lineHeight: 20,
   },
 });

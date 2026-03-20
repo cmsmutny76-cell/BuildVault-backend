@@ -1,11 +1,154 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  SafeAreaView,
+  ScrollView,
+  TextInput,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
+import api from '../services/api';
 
 interface NewEstimateScreenProps {
   onBack: () => void;
+  currentUserId?: string;
+  isContractor?: boolean;
+  defaultProjectId?: string;
+  defaultProjectTitle?: string;
+  defaultContractorId?: string;
 }
 
-export default function NewEstimateScreen({ onBack }: NewEstimateScreenProps) {
+export default function NewEstimateScreen({
+  onBack,
+  currentUserId,
+  isContractor,
+  defaultProjectId,
+  defaultProjectTitle,
+  defaultContractorId,
+}: NewEstimateScreenProps) {
+  const [projectId, setProjectId] = useState(defaultProjectId || '');
+  const [contractorId, setContractorId] = useState(
+    defaultContractorId || (isContractor ? (currentUserId || '') : '')
+  );
+  const [projectTitle, setProjectTitle] = useState(defaultProjectTitle || 'Kitchen Remodel');
+  const [timeline, setTimeline] = useState('6-8 weeks');
+  const [scopeText, setScopeText] = useState('Replace cabinets, countertops, flooring, and lighting.');
+  const [notes, setNotes] = useState('30% deposit, 40% midpoint, 30% completion.');
+  const [loading, setLoading] = useState(false);
+
+  const [lineItems, setLineItems] = useState([
+    { description: 'Demolition and disposal', quantity: '1', unitPrice: '2500', category: 'labor' },
+    { description: 'Cabinet installation', quantity: '20', unitPrice: '350', category: 'materials' },
+  ]);
+
+  useEffect(() => {
+    setProjectId(defaultProjectId || '');
+  }, [defaultProjectId]);
+
+  useEffect(() => {
+    setProjectTitle(defaultProjectTitle || 'Kitchen Remodel');
+  }, [defaultProjectTitle]);
+
+  useEffect(() => {
+    if (defaultContractorId) {
+      setContractorId(defaultContractorId);
+    } else {
+      setContractorId(isContractor ? (currentUserId || '') : '');
+    }
+  }, [currentUserId, isContractor, defaultContractorId]);
+
+  const computedTotal = useMemo(() => {
+    const subtotal = lineItems.reduce((sum, item) => {
+      const qty = Number(item.quantity) || 0;
+      const price = Number(item.unitPrice) || 0;
+      return sum + qty * price;
+    }, 0);
+    const tax = subtotal * 0.0825;
+    return { subtotal, tax, total: subtotal + tax };
+  }, [lineItems]);
+
+  const updateItem = (index: number, field: string, value: string) => {
+    const next = [...lineItems];
+    next[index] = { ...next[index], [field]: value };
+    setLineItems(next);
+  };
+
+  const addLineItem = () => {
+    setLineItems((prev) => [
+      ...prev,
+      { description: '', quantity: '1', unitPrice: '0', category: 'labor' },
+    ]);
+  };
+
+  const removeLineItem = (index: number) => {
+    if (lineItems.length === 1) {
+      return;
+    }
+    setLineItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleGenerateDescription = async () => {
+    try {
+      setLoading(true);
+      const response = await api.ai.generateDescription({
+        projectType: projectTitle,
+        scope: scopeText,
+        timeline,
+      });
+
+      const nextSteps = Array.isArray(response.result?.recommendedNextSteps)
+        ? response.result.recommendedNextSteps.join(' | ')
+        : '';
+
+      setNotes(`${response.result?.summary || notes}${nextSteps ? `\nNext: ${nextSteps}` : ''}`);
+    } catch (error) {
+      Alert.alert('Description helper', 'Unable to generate description right now.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateEstimate = async () => {
+    try {
+      setLoading(true);
+
+      const payload = {
+        projectId,
+        contractorId,
+        projectTitle,
+        notes,
+        lineItems: lineItems
+          .filter((item) => item.description.trim())
+          .map((item) => ({
+            description: item.description.trim(),
+            quantity: Number(item.quantity) || 0,
+            unitPrice: Number(item.unitPrice) || 0,
+            category: item.category as 'labor' | 'materials' | 'equipment' | 'permits' | 'other',
+          })),
+      };
+
+      if (!payload.lineItems.length) {
+        Alert.alert('Missing line items', 'Please add at least one line item.');
+        return;
+      }
+
+      if (!payload.projectId || !payload.contractorId) {
+        Alert.alert('Missing project context', 'A valid project and contractor are required to create an estimate.');
+        return;
+      }
+
+      const created = await api.quote.generateEstimate(payload);
+      Alert.alert('Estimate created', `Estimate ID: ${created.estimate?.id || 'n/a'}`);
+    } catch (error) {
+      Alert.alert('Create estimate', 'Unable to create estimate. Check backend is running.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content}>
@@ -19,64 +162,105 @@ export default function NewEstimateScreen({ onBack }: NewEstimateScreenProps) {
 
         {/* Content */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>📝 Create New Estimate</Text>
-          <Text style={styles.description}>
-            Get instant cost estimates for your construction project.
-          </Text>
-          
-          <View style={styles.stepList}>
-            <View style={styles.step}>
-              <Text style={styles.stepNumber}>1</Text>
-              <Text style={styles.stepText}>Select project type</Text>
+          <Text style={styles.cardTitle}>📝 Estimate Builder</Text>
+          <Text style={styles.description}>Build and submit a line-item estimate to the backend API.</Text>
+
+          <Text style={styles.label}>Project ID</Text>
+          <TextInput style={styles.input} value={projectId} onChangeText={setProjectId} placeholder="proj1" placeholderTextColor="#94a3b8" />
+
+          <Text style={styles.label}>Contractor ID</Text>
+          <TextInput style={styles.input} value={contractorId} onChangeText={setContractorId} placeholder="c1" placeholderTextColor="#94a3b8" />
+
+          <Text style={styles.label}>Project Title</Text>
+          <TextInput style={styles.input} value={projectTitle} onChangeText={setProjectTitle} placeholder="Kitchen Remodel" placeholderTextColor="#94a3b8" />
+
+          <Text style={styles.label}>Scope / Description</Text>
+          <TextInput
+            style={[styles.input, styles.multilineInput]}
+            value={scopeText}
+            onChangeText={setScopeText}
+            placeholder="Describe work scope"
+            placeholderTextColor="#94a3b8"
+            multiline
+          />
+
+          <Text style={styles.label}>Timeline</Text>
+          <TextInput style={styles.input} value={timeline} onChangeText={setTimeline} placeholder="6-8 weeks" placeholderTextColor="#94a3b8" />
+
+          <TouchableOpacity style={styles.secondaryButton} onPress={handleGenerateDescription} disabled={loading}>
+            <Text style={styles.secondaryButtonText}>Generate Professional Notes (AI)</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.label}>Notes</Text>
+          <TextInput
+            style={[styles.input, styles.multilineInput]}
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="Payment schedule, assumptions, etc."
+            placeholderTextColor="#94a3b8"
+            multiline
+          />
+
+          <Text style={styles.cardTitle}>Line Items</Text>
+          {lineItems.map((item, index) => (
+            <View key={`li-${index}`} style={styles.lineItemCard}>
+              <TextInput
+                style={styles.input}
+                value={item.description}
+                onChangeText={(value) => updateItem(index, 'description', value)}
+                placeholder="Description"
+                placeholderTextColor="#94a3b8"
+              />
+              <View style={styles.row}>
+                <TextInput
+                  style={[styles.input, styles.halfInput]}
+                  value={item.quantity}
+                  onChangeText={(value) => updateItem(index, 'quantity', value)}
+                  placeholder="Qty"
+                  keyboardType="numeric"
+                  placeholderTextColor="#94a3b8"
+                />
+                <TextInput
+                  style={[styles.input, styles.halfInput]}
+                  value={item.unitPrice}
+                  onChangeText={(value) => updateItem(index, 'unitPrice', value)}
+                  placeholder="Unit Price"
+                  keyboardType="numeric"
+                  placeholderTextColor="#94a3b8"
+                />
+              </View>
+              <View style={styles.row}>
+                {['labor', 'materials', 'equipment', 'permits', 'other'].map((category) => (
+                  <TouchableOpacity
+                    key={category}
+                    style={[styles.categoryChip, item.category === category && styles.categoryChipActive]}
+                    onPress={() => updateItem(index, 'category', category)}
+                  >
+                    <Text style={[styles.categoryChipText, item.category === category && styles.categoryChipTextActive]}>
+                      {category}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity style={styles.removeButton} onPress={() => removeLineItem(index)}>
+                <Text style={styles.removeButtonText}>Remove Line Item</Text>
+              </TouchableOpacity>
             </View>
-            <View style={styles.step}>
-              <Text style={styles.stepNumber}>2</Text>
-              <Text style={styles.stepText}>Upload photos or blueprints</Text>
-            </View>
-            <View style={styles.step}>
-              <Text style={styles.stepNumber}>3</Text>
-              <Text style={styles.stepText}>Add project details</Text>
-            </View>
-            <View style={styles.step}>
-              <Text style={styles.stepNumber}>4</Text>
-              <Text style={styles.stepText}>Get instant estimate</Text>
-            </View>
+          ))}
+
+          <TouchableOpacity style={styles.secondaryButton} onPress={addLineItem}>
+            <Text style={styles.secondaryButtonText}>+ Add Line Item</Text>
+          </TouchableOpacity>
+
+          <View style={styles.totalsBox}>
+            <Text style={styles.totalsText}>Subtotal: ${computedTotal.subtotal.toFixed(2)}</Text>
+            <Text style={styles.totalsText}>Tax: ${computedTotal.tax.toFixed(2)}</Text>
+            <Text style={styles.totalPrimary}>Total: ${computedTotal.total.toFixed(2)}</Text>
           </View>
 
-          <View style={styles.comingSoonBadge}>
-            <Text style={styles.comingSoonText}>Coming Soon</Text>
-          </View>
-        </View>
-
-        {/* Project Types */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Project Types</Text>
-          
-          <View style={styles.typeGrid}>
-            <View style={styles.typeItem}>
-              <Text style={styles.typeIcon}>🏠</Text>
-              <Text style={styles.typeText}>Residential</Text>
-            </View>
-            <View style={styles.typeItem}>
-              <Text style={styles.typeIcon}>🏢</Text>
-              <Text style={styles.typeText}>Commercial</Text>
-            </View>
-            <View style={styles.typeItem}>
-              <Text style={styles.typeIcon}>🌳</Text>
-              <Text style={styles.typeText}>Landscaping</Text>
-            </View>
-            <View style={styles.typeItem}>
-              <Text style={styles.typeIcon}>🔨</Text>
-              <Text style={styles.typeText}>Remodeling</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.placeholder}>
-          <Text style={styles.placeholderText}>
-            This feature will provide AI-powered cost estimates based on your 
-            project photos, blueprints, and specifications.
-          </Text>
+          <TouchableOpacity style={styles.createButton} onPress={handleCreateEstimate} disabled={loading}>
+            {loading ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.createButtonText}>Create Estimate</Text>}
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -117,7 +301,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(212, 175, 55, 0.3)',
   },
   cardTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
     marginBottom: 12,
@@ -128,72 +312,108 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     lineHeight: 24,
   },
-  stepList: {
-    marginBottom: 20,
-  },
-  step: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  stepNumber: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(212, 175, 55, 0.2)',
-    color: '#D4AF37',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    lineHeight: 32,
-    marginRight: 12,
-  },
-  stepText: {
-    fontSize: 15,
+  label: {
     color: '#cbd5e1',
-    flex: 1,
+    fontSize: 13,
+    marginBottom: 6,
   },
-  comingSoonBadge: {
-    backgroundColor: 'rgba(212, 175, 55, 0.2)',
+  input: {
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.25)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#fff',
+    marginBottom: 10,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+  },
+  multilineInput: {
+    minHeight: 72,
+    textAlignVertical: 'top',
+  },
+  row: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  halfInput: {
+    flex: 1,
+    minWidth: 120,
+  },
+  lineItemCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.3)',
     borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    padding: 10,
+    marginBottom: 10,
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+  },
+  categoryChip: {
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.35)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  categoryChipActive: {
+    borderColor: '#D4AF37',
+    backgroundColor: 'rgba(212, 175, 55, 0.15)',
+  },
+  categoryChipText: {
+    color: '#cbd5e1',
+    fontSize: 12,
+  },
+  categoryChipTextActive: {
+    color: '#D4AF37',
+    fontWeight: '700',
+  },
+  removeButton: {
+    marginTop: 8,
     alignSelf: 'flex-start',
   },
-  comingSoonText: {
+  removeButtonText: {
+    color: '#fca5a5',
+    fontSize: 12,
+  },
+  secondaryButton: {
+    borderWidth: 1,
+    borderColor: '#D4AF37',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  secondaryButtonText: {
     color: '#D4AF37',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  typeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -8,
+  totalsBox: {
+    borderTopWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.35)',
+    paddingTop: 10,
+    marginTop: 6,
   },
-  typeItem: {
-    width: '50%',
-    padding: 8,
-  },
-  typeIcon: {
-    fontSize: 32,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  typeText: {
-    fontSize: 14,
+  totalsText: {
     color: '#cbd5e1',
-    textAlign: 'center',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  totalPrimary: {
+    color: '#fff',
+    fontSize: 18,
     fontWeight: '600',
   },
-  placeholder: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
-    padding: 20,
+  createButton: {
+    backgroundColor: '#D4AF37',
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 14,
   },
-  placeholderText: {
-    color: '#94a3b8',
-    fontSize: 14,
-    lineHeight: 22,
-    textAlign: 'center',
+  createButtonText: {
+    color: '#0f172a',
+    fontSize: 16,
+    fontWeight: '800',
   },
 });

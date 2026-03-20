@@ -180,3 +180,122 @@ CREATE INDEX idx_quotes_project ON material_quotes(project_id);
 CREATE INDEX idx_leads_project ON leads(project_id);
 CREATE INDEX idx_leads_contractor ON leads(contractor_id);
 CREATE INDEX idx_permits_project ON permits(project_id);
+
+-- App-layer persistence tables using current string IDs from the service layer.
+CREATE TABLE app_projects (
+    id VARCHAR(64) PRIMARY KEY,
+    owner_id VARCHAR(64) NOT NULL,
+    project_type VARCHAR(100) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    location JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status VARCHAR(32) NOT NULL DEFAULT 'draft',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE app_estimates (
+    id VARCHAR(64) PRIMARY KEY,
+    project_id VARCHAR(64) REFERENCES app_projects(id) ON DELETE CASCADE,
+    contractor_id VARCHAR(64) NOT NULL,
+    project_title VARCHAR(255) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    line_items JSONB NOT NULL,
+    subtotal DECIMAL(12, 2) NOT NULL,
+    tax DECIMAL(12, 2) NOT NULL,
+    total DECIMAL(12, 2) NOT NULL,
+    notes TEXT,
+    valid_until TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE app_estimate_revisions (
+    id VARCHAR(64) PRIMARY KEY,
+    estimate_id VARCHAR(64) REFERENCES app_estimates(id) ON DELETE CASCADE,
+    project_id VARCHAR(64) REFERENCES app_projects(id) ON DELETE CASCADE,
+    updated_by VARCHAR(64) NOT NULL,
+    reason TEXT NOT NULL,
+    changes JSONB NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE app_messages (
+    id VARCHAR(64) PRIMARY KEY,
+    conversation_id VARCHAR(128) NOT NULL,
+    sender_id VARCHAR(64) NOT NULL,
+    receiver_id VARCHAR(64) NOT NULL,
+    project_id VARCHAR(64),
+    content TEXT NOT NULL,
+    read BOOLEAN DEFAULT false,
+    attachments JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE platform_events (
+    id VARCHAR(80) PRIMARY KEY,
+    type VARCHAR(64) NOT NULL,
+    entity_type VARCHAR(32) NOT NULL,
+    entity_id VARCHAR(128) NOT NULL,
+    occurred_at TIMESTAMP NOT NULL,
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_app_projects_owner ON app_projects(owner_id);
+CREATE INDEX idx_app_estimates_project ON app_estimates(project_id);
+CREATE INDEX idx_app_revisions_estimate ON app_estimate_revisions(estimate_id);
+CREATE INDEX idx_app_messages_conversation ON app_messages(conversation_id);
+CREATE INDEX idx_app_messages_receiver ON app_messages(receiver_id);
+CREATE INDEX idx_platform_events_type ON platform_events(type);
+CREATE INDEX idx_platform_events_entity ON platform_events(entity_type, entity_id);
+
+CREATE TABLE app_auth_users (
+    id VARCHAR(64) PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    phone VARCHAR(20),
+    address TEXT,
+    city VARCHAR(100),
+    state VARCHAR(32),
+    zip_code VARCHAR(20),
+    user_type VARCHAR(32) NOT NULL,
+    business_name VARCHAR(255),
+    license_number VARCHAR(100),
+    service_areas JSONB,
+    specialties JSONB,
+    subscription JSONB,
+    verified BOOLEAN DEFAULT false,
+    verified_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE app_auth_verification_tokens (
+    token VARCHAR(128) PRIMARY KEY,
+    user_id VARCHAR(64) REFERENCES app_auth_users(id) ON DELETE CASCADE,
+    email VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE app_auth_password_reset_tokens (
+    token VARCHAR(128) PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_app_auth_users_email ON app_auth_users(email);
+CREATE INDEX idx_app_auth_users_type ON app_auth_users(user_type);
+CREATE INDEX idx_app_auth_verify_user ON app_auth_verification_tokens(user_id);
+CREATE INDEX idx_app_auth_reset_email ON app_auth_password_reset_tokens(email);
+
+CREATE TABLE app_contractor_availability (
+    contractor_id VARCHAR(64) PRIMARY KEY,
+    availability VARCHAR(16) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_app_contractor_availability_status ON app_contractor_availability(availability);

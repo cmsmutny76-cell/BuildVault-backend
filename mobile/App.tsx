@@ -19,6 +19,8 @@ import ContractorProfileScreen from './screens/ContractorProfileScreen';
 import ContractorViewScreen from './screens/ContractorViewScreen';
 import ContractorSearchScreen from './screens/ContractorSearchScreen';
 import EstimateViewScreen, { EstimateListScreen } from './screens/EstimateViewScreen';
+import ProjectSelectorScreen from './screens/ProjectSelectorScreen';
+import CreateProjectScreen from './screens/CreateProjectScreen';
 // Category Dashboards
 import CommercialDashboard from './screens/CommercialDashboard';
 import MultiFamilyDashboard from './screens/MultiFamilyDashboard';
@@ -32,15 +34,35 @@ import LaborPoolDashboard from './screens/LaborPoolDashboard';
 // Messaging
 import MessagingListScreen from './screens/MessagingListScreen';
 import ChatScreen from './screens/ChatScreen';
+// Email Verification
+import EmailVerificationScreen from './screens/EmailVerificationScreen';
+import EmailVerificationResultScreen from './screens/EmailVerificationResultScreen';
 import { revenueCatService } from './services/revenueCat';
 import { MockContractor, MockEstimate, mockContractors, mockEstimates } from './services/mockData';
+import { Contractor } from './screens/ContractorSearchScreen';
 
-type Screen = 'home' | 'profile' | 'settings' | 'login' | 'register' | 'photoAnalysis' | 'blueprintAnalysis' | 'buildingCodes' | 'priceComparison' | 'findContractors' | 'permitAssistance' | 'help' | 'projectDetails' | 'newEstimate' | 'projectProfile' | 'contractorProfile' | 'contractorView' | 'contractorSearch' | 'estimateView' | 'estimateList' | 'commercial' | 'multiFamily' | 'apartment' | 'developer' | 'landscaping' | 'foodProvider' | 'careerOpportunities' | 'employment' | 'laborPool' | 'messaging' | 'chat';
+type Screen = 'home' | 'profile' | 'settings' | 'login' | 'register' | 'emailVerification' | 'emailVerificationResult' | 'projectSelector' | 'createProject' | 'photoAnalysis' | 'blueprintAnalysis' | 'buildingCodes' | 'priceComparison' | 'findContractors' | 'permitAssistance' | 'help' | 'projectDetails' | 'newEstimate' | 'projectProfile' | 'contractorProfile' | 'contractorView' | 'contractorSearch' | 'estimateView' | 'estimateList' | 'commercial' | 'multiFamily' | 'apartment' | 'developer' | 'landscaping' | 'foodProvider' | 'careerOpportunities' | 'employment' | 'laborPool' | 'messaging' | 'chat';
 
 interface User {
   id: string;
   email: string;
   isContractor: boolean;
+}
+
+interface Project {
+  id: string;
+  ownerId: string;
+  title: string;
+  description?: string;
+  projectType: string;
+  location: {
+    city: string;
+    state: string;
+    zipCode: string;
+    street?: string;
+  };
+  status: string;
+  createdAt: string;
 }
 
 export default function App() {
@@ -49,9 +71,14 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   
   // State for passing data between screens
-  const [selectedContractor, setSelectedContractor] = useState<MockContractor | null>(null);
+  const [selectedContractor, setSelectedContractor] = useState<Contractor | MockContractor | null>(null);
   const [selectedEstimate, setSelectedEstimate] = useState<MockEstimate | null>(null);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  
+  // Email verification state
+  const [verificationEmail, setVerificationEmail] = useState<string>('');
+  const [verificationToken, setVerificationToken] = useState<string>('');
+  const [verificationUserId, setVerificationUserId] = useState<string>('');
 
   // Initialize RevenueCat on app start
   useEffect(() => {
@@ -59,6 +86,34 @@ export default function App() {
       revenueCatService.initialize(user.id);
     }
   }, [user]);
+
+  // Handle deep links for email verification
+  useEffect(() => {
+    // Check for verification link on app open
+    const checkInitialUrl = async () => {
+      try {
+        // This requires expo-linking to be installed
+        // For now, verification can be tested through the resend email flow
+        // TODO: Install expo-linking and implement deep link handling
+        // import * as Linking from 'expo-linking';
+        // const url = await Linking.getInitialURL();
+        // if (url && url.includes('verify')) {
+        //   const params = new URL(url).searchParams;
+        //   const token = params.get('token');
+        //   const userId = params.get('userId');
+        //   if (token && userId) {
+        //     setVerificationToken(token);
+        //     setVerificationUserId(userId);
+        //     setCurrentScreen('emailVerificationResult');
+        //   }
+        // }
+      } catch (error) {
+        console.log('Deep linking not configured');
+      }
+    };
+
+    checkInitialUrl();
+  }, []);
 
   const handleLogin = (userData: User) => {
     setUser(userData);
@@ -68,12 +123,24 @@ export default function App() {
 
   const handleLogout = () => {
     setUser(null);
+    setSelectedProject(null);
     setCurrentScreen('login');
     setNavigationStack([]);
   };
 
   const handleRegister = (userData: User) => {
     setUser(userData);
+    setCurrentScreen('home');
+    setNavigationStack([]);
+  };
+
+  const handleProjectSelect = (project: Project) => {
+    setSelectedProject(project);
+    handleBack();
+  };
+
+  const handleProjectCreated = (project: Project) => {
+    setSelectedProject(project);
     setCurrentScreen('home');
     setNavigationStack([]);
   };
@@ -113,12 +180,65 @@ export default function App() {
         <RegisterScreen
           onRegister={handleRegister}
           onNavigateToLogin={() => setCurrentScreen('login')}
+          onNavigateToEmailVerification={(email) => {
+            setVerificationEmail(email);
+            setCurrentScreen('emailVerification');
+          }}
+        />
+      );
+    }
+
+    if (currentScreen === 'emailVerification') {
+      return (
+        <EmailVerificationScreen
+          email={verificationEmail}
+          onNavigateToLogin={() => setCurrentScreen('login')}
+          onBack={() => setCurrentScreen('register')}
+        />
+      );
+    }
+
+    if (currentScreen === 'emailVerificationResult') {
+      return (
+        <EmailVerificationResultScreen
+          token={verificationToken}
+          userId={verificationUserId}
+          onNavigateToLogin={() => setCurrentScreen('login')}
+          onBack={() => {
+            setVerificationEmail('');
+            setCurrentScreen('emailVerification');
+          }}
         />
       );
     }
 
     // Authenticated screens
     switch (currentScreen) {
+      // Project Management
+      case 'projectSelector':
+        return user ? (
+          <ProjectSelectorScreen
+            currentUserId={user.id}
+            currentProjectId={selectedProject?.id || null}
+            onSelectProject={handleProjectSelect}
+            onCreateNewProject={() => handleNavigate('createProject')}
+            onBack={handleBack}
+          />
+        ) : (
+          <HomeScreen onNavigate={handleNavigate} user={user} />
+        );
+      
+      case 'createProject':
+        return user ? (
+          <CreateProjectScreen
+            currentUserId={user.id}
+            onProjectCreated={handleProjectCreated}
+            onBack={handleBack}
+          />
+        ) : (
+          <HomeScreen onNavigate={handleNavigate} user={user} />
+        );
+      
       // User Profile & Settings
       case 'profile':
         return <ProfileScreen onBack={handleBack} onNavigate={handleNavigate} />;
@@ -147,11 +267,11 @@ export default function App() {
       
       // Contractor Services
       case 'findContractors':
-        return <FindContractorsScreen onBack={handleBack} />;
+        return <FindContractorsScreen onBack={handleBack} onNavigate={handleNavigate} hasSelectedProject={!!selectedProject} />;
       case 'contractorSearch':
         return (
           <ContractorSearchScreen
-            projectId={selectedProjectId || undefined}
+            projectId={selectedProject?.id}
             onBack={handleBack}
             onViewContractor={(contractor) => {
               setSelectedContractor(contractor);
@@ -160,9 +280,9 @@ export default function App() {
           />
         );
       case 'contractorView':
-        return selectedContractor ? (
+        return selectedContractor && 'companyName' in selectedContractor ? (
           <ContractorViewScreen
-            contractor={selectedContractor}
+            contractor={selectedContractor as MockContractor}
             onBack={handleBack}
             onSendMessage={(contractorId) => {
               alert(`Message feature coming soon! Contractor ID: ${contractorId}`);
@@ -172,12 +292,12 @@ export default function App() {
             }}
           />
         ) : (
-          <HomeScreen onNavigate={handleNavigate} user={user} />
+          <HomeScreen onNavigate={handleNavigate} user={user} selectedProject={selectedProject} />
         );
       case 'estimateList':
-        return selectedProjectId ? (
+        return selectedProject ? (
           <EstimateListScreen
-            projectId={selectedProjectId}
+            projectId={selectedProject.id}
             onBack={handleBack}
             onViewEstimate={(estimate) => {
               setSelectedEstimate(estimate);
@@ -185,7 +305,7 @@ export default function App() {
             }}
           />
         ) : (
-          <HomeScreen onNavigate={handleNavigate} user={user} />
+          <HomeScreen onNavigate={handleNavigate} user={user} selectedProject={selectedProject} />
         );
       case 'estimateView':
         return selectedEstimate ? (
@@ -209,7 +329,7 @@ export default function App() {
             }}
           />
         ) : (
-          <HomeScreen onNavigate={handleNavigate} user={user} />
+          <HomeScreen onNavigate={handleNavigate} user={user} selectedProject={selectedProject} />
         );
       case 'priceComparison':
         return <PriceComparisonScreen onBack={handleBack} />;
@@ -242,12 +362,12 @@ export default function App() {
       
       // Messaging
       case 'messaging':
-        return <MessagingListScreen onBack={handleBack} onNavigate={handleNavigate} />;
+        return <MessagingListScreen onBack={handleBack} onNavigate={handleNavigate} currentUserId={user?.id || ''} />;
       case 'chat':
-        return <ChatScreen onBack={handleBack} />;
+        return <ChatScreen onBack={handleBack} currentUserId={user?.id || ''} />;
       
       default:
-        return <HomeScreen onNavigate={handleNavigate} user={user} />;
+        return <HomeScreen onNavigate={handleNavigate} user={user} selectedProject={selectedProject} />;
     }
   };
 

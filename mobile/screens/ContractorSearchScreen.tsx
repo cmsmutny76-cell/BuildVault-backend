@@ -1,19 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ImageBackground, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import {
-  MockContractor,
-  MockProject,
-  mockContractors,
-  mockProjects,
-  getMatchedContractors,
-  searchContractors,
-} from '../services/mockData';
+
+export interface Contractor {
+  id: string;
+  name: string;
+  rating: number;
+  reviewCount: number;
+  specialties: string[];
+  yearsExperience: number;
+  availability: string;
+  hourlyRate?: number;
+  budgetRange?: { min: number; max: number };
+  serviceRadius?: number;
+  location?: { city: string; state: string; zipCode: string };
+  certifications?: string[];
+  completedProjects?: number;
+  responseTime?: number;
+}
+
+interface MatchedContractor extends Contractor {
+  matchScore: number;
+  matchReasons?: string[];
+}
 
 interface ContractorSearchScreenProps {
   projectId?: string;
   onBack: () => void;
-  onViewContractor: (contractor: MockContractor) => void;
+  onViewContractor: (contractor: Contractor) => void;
 }
 
 const ContractorSearchScreen: React.FC<ContractorSearchScreenProps> = ({
@@ -21,44 +35,119 @@ const ContractorSearchScreen: React.FC<ContractorSearchScreenProps> = ({
   onBack,
   onViewContractor,
 }) => {
-  const [searchMode, setSearchMode] = useState<'ai-match' | 'manual-search'>(
-    projectId ? 'ai-match' : 'manual-search'
-  );
-  
-  // AI Match state
-  const [matchedContractors, setMatchedContractors] = useState<Array<MockContractor & { matchScore: number }>>([]);
-  const [project, setProject] = useState<MockProject | null>(null);
-
-  // Manual Search state
-  const [searchSpecialty, setSearchSpecialty] = useState('');
-  const [searchLocation, setSearchLocation] = useState('');
-  const [minRating, setMinRating] = useState(0);
-  const [selectedAvailability, setSelectedAvailability] = useState<string>('');
-  const [maxHourlyRate, setMaxHourlyRate] = useState<number>(0);
-  const [searchResults, setSearchResults] = useState<MockContractor[]>(mockContractors);
+  const [matchedContractors, setMatchedContractors] = useState<MatchedContractor[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (projectId && searchMode === 'ai-match') {
-      // Load project and get AI matches
-      const foundProject = mockProjects.find(p => p.id === projectId);
-      if (foundProject) {
-        setProject(foundProject);
-        const matches = getMatchedContractors(foundProject);
-        setMatchedContractors(matches);
-      }
+    if (projectId) {
+      fetchMatchedContractors();
     }
-  }, [projectId, searchMode]);
+  }, [projectId]);
 
-  const handleManualSearch = () => {
-    const results = searchContractors({
-      specialty: searchSpecialty,
-      location: searchLocation,
-      minRating: minRating || undefined,
-      availability: selectedAvailability || undefined,
-      maxHourlyRate: maxHourlyRate || undefined,
-    });
-    setSearchResults(results);
+  const fetchMatchedContractors = async () => {
+    if (!projectId) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // First, fetch the project details
+      const projectResponse = await fetch(`http://localhost:3000/api/projects`);
+      const projectData = await projectResponse.json();
+
+      if (!projectData.success || !projectData.projects) {
+        throw new Error('Failed to fetch project details');
+      }
+
+      const project = projectData.projects.find((p: any) => p.id === projectId);
+
+      if (!project) {
+        throw new Error('Project not found');
+      }
+
+      // Call AI matching API
+      const matchResponse = await fetch('http://localhost:3000/api/ai/match-contractors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectType: project.projectType || 'residential',
+          budget: 50000, // TODO: Get from project or use default
+          location: {
+            zipCode: project.location?.zipCode || '78701',
+            city: project.location?.city || 'Austin',
+            state: project.location?.state || 'TX',
+          },
+          services: [project.projectType || 'general'],
+          timeline: '3-6 months',
+          urgency: 'medium',
+        }),
+      });
+
+      const matchData = await matchResponse.json();
+
+      if (matchData.success && matchData.contractors) {
+        setMatchedContractors(matchData.contractors);
+      } else {
+        setMatchedContractors([]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch matched contractors:', err);
+      setError('Failed to load contractors. Please try again.');
+      setMatchedContractors([]);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (!projectId) {
+    return (
+      <ImageBackground
+        source={{ uri: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200&q=80' }}
+        style={styles.backgroundImage}
+        blurRadius={2}
+      >
+        <LinearGradient colors={['rgba(0,0,0,0.7)', 'rgba(0,0,0,0.9)']} style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onBack} style={styles.backButton}>
+              <Text style={styles.backButtonText}>← Back</Text>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Find Contractors</Text>
+          </View>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateIcon}>🔍</Text>
+            <Text style={styles.emptyStateTitle}>No Project Selected</Text>
+            <Text style={styles.emptyStateText}>
+              Please select a project first to find matched contractors
+            </Text>
+          </View>
+        </LinearGradient>
+      </ImageBackground>
+    );
+  }
+
+  if (loading) {
+    return (
+      <ImageBackground
+        source={{ uri: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200&q=80' }}
+        style={styles.backgroundImage}
+        blurRadius={2}
+      >
+        <LinearGradient colors={['rgba(0,0,0,0.7)', 'rgba(0,0,0,0.9)']} style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onBack} style={styles.backButton}>
+              <Text style={styles.backButtonText}>← Back</Text>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Find Contractors</Text>
+          </View>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#D4AF37" />
+            <Text style={styles.loadingText}>Finding the best matches for your project...</Text>
+          </View>
+        </LinearGradient>
+      </ImageBackground>
+    );
+  }
 
   const renderStars = (rating: number) => {
     return (
@@ -84,26 +173,27 @@ const ContractorSearchScreen: React.FC<ContractorSearchScreenProps> = ({
     );
   };
 
-  const renderContractorCard = (contractor: MockContractor, matchScore?: number) => (
+  const renderContractorCard = (contractor: MatchedContractor) => (
     <TouchableOpacity
       key={contractor.id}
       style={styles.contractorCard}
       onPress={() => onViewContractor(contractor)}
     >
-      {/* Match Score Badge (if AI matching) */}
-      {matchScore !== undefined && (
-        <View style={styles.matchScoreContainer}>
-          {renderMatchScore(matchScore)}
-        </View>
-      )}
+      {/* Match Score Badge */}
+      <View style={styles.matchScoreContainer}>
+        {renderMatchScore(contractor.matchScore)}
+      </View>
 
       <View style={styles.cardHeader}>
         <View style={styles.cardHeaderLeft}>
           <Text style={styles.contractorName}>{contractor.name}</Text>
-          <Text style={styles.companyName}>{contractor.companyName}</Text>
         </View>
         <View style={styles.cardHeaderRight}>
-          <Text style={styles.hourlyRate}>${contractor.hourlyRate}/hr</Text>
+          {contractor.budgetRange && (
+            <Text style={styles.hourlyRate}>
+              ${contractor.budgetRange.min / 1000}k - ${contractor.budgetRange.max / 1000}k
+            </Text>
+          )}
         </View>
       </View>
 
@@ -119,14 +209,18 @@ const ContractorSearchScreen: React.FC<ContractorSearchScreenProps> = ({
           <Text style={styles.statLabel}>Experience:</Text>
           <Text style={styles.statValue}>{contractor.yearsExperience} years</Text>
         </View>
-        <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Projects:</Text>
-          <Text style={styles.statValue}>{contractor.projectsCompleted}</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Response:</Text>
-          <Text style={styles.statValue}>{contractor.responseTime}</Text>
-        </View>
+        {contractor.completedProjects && (
+          <View style={styles.statItem}>
+            <Text style={styles.statLabel}>Projects:</Text>
+            <Text style={styles.statValue}>{contractor.completedProjects}</Text>
+          </View>
+        )}
+        {contractor.responseTime && (
+          <View style={styles.statItem}>
+            <Text style={styles.statLabel}>Response:</Text>
+            <Text style={styles.statValue}>{contractor.responseTime}h</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.cardSpecialties}>
@@ -139,6 +233,15 @@ const ContractorSearchScreen: React.FC<ContractorSearchScreenProps> = ({
           <Text style={styles.moreSpecialties}>+{contractor.specialties.length - 3} more</Text>
         )}
       </View>
+
+      {contractor.matchReasons && contractor.matchReasons.length > 0 && (
+        <View style={styles.matchReasons}>
+          <Text style={styles.matchReasonsTitle}>Why this match:</Text>
+          {contractor.matchReasons.slice(0, 2).map((reason, index) => (
+            <Text key={index} style={styles.matchReason}>• {reason}</Text>
+          ))}
+        </View>
+      )}
 
       <View style={styles.cardFooter}>
         <View style={[
@@ -154,18 +257,20 @@ const ContractorSearchScreen: React.FC<ContractorSearchScreenProps> = ({
           </Text>
         </View>
 
-        <View style={styles.badges}>
-          {contractor.insurance.liability && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>✓ Insured</Text>
-            </View>
-          )}
-          {contractor.insurance.bonded && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>✓ Bonded</Text>
-            </View>
-          )}
-        </View>
+        {contractor.certifications && contractor.certifications.length > 0 && (
+          <View style={styles.badges}>
+            {contractor.certifications.includes('Licensed') && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>✓ Licensed</Text>
+              </View>
+            )}
+            {contractor.certifications.includes('Insured') && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>✓ Insured</Text>
+              </View>
+            )}
+          </View>
+        )}
       </View>
 
       <TouchableOpacity style={styles.viewProfileButton}>
@@ -174,162 +279,13 @@ const ContractorSearchScreen: React.FC<ContractorSearchScreenProps> = ({
     </TouchableOpacity>
   );
 
-  const renderAIMatchView = () => (
-    <View style={styles.content}>
-      {project && (
-        <View style={styles.projectInfoCard}>
-          <Text style={styles.projectInfoTitle}>Finding Matches For:</Text>
-          <Text style={styles.projectTitle}>{project.title}</Text>
-          <Text style={styles.projectDetails}>
-            Budget: ${project.budget.toLocaleString()} • {project.services.join(', ')}
-          </Text>
-        </View>
-      )}
-
-      <View style={styles.resultsHeader}>
-        <Text style={styles.resultsTitle}>
-          🎯 AI-Matched Contractors ({matchedContractors.length})
-        </Text>
-        <Text style={styles.resultsSubtitle}>
-          Ranked by compatibility with your project
-        </Text>
-      </View>
-
-      {matchedContractors.length > 0 ? (
-        matchedContractors.map((contractor, index) => (
-          <View key={contractor.id}>
-            {index === 0 && (
-              <View style={styles.topMatchBanner}>
-                <Text style={styles.topMatchText}>⭐ Best Match</Text>
-              </View>
-            )}
-            {renderContractorCard(contractor, contractor.matchScore)}
-          </View>
-        ))
-      ) : (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateText}>No matching contractors found</Text>
-          <Text style={styles.emptyStateSubtext}>Try adjusting your project requirements</Text>
-        </View>
-      )}
-    </View>
-  );
-
-  const renderManualSearchView = () => (
-    <View style={styles.content}>
-      {/* Search Filters */}
-      <View style={styles.searchFilters}>
-        <Text style={styles.filterTitle}>Search Contractors</Text>
-
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterLabel}>Specialty:</Text>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="e.g., Kitchen Remodeling, Roofing..."
-            placeholderTextColor="#999"
-            value={searchSpecialty}
-            onChangeText={setSearchSpecialty}
-          />
-        </View>
-
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterLabel}>Location:</Text>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="City or State"
-            placeholderTextColor="#999"
-            value={searchLocation}
-            onChangeText={setSearchLocation}
-          />
-        </View>
-
-        <View style={styles.filterRow}>
-          <View style={styles.filterGroupSmall}>
-            <Text style={styles.filterLabel}>Min Rating:</Text>
-            <View style={styles.ratingPicker}>
-              {[0, 3, 4, 4.5, 5].map((rating) => (
-                <TouchableOpacity
-                  key={rating}
-                  style={[
-                    styles.ratingOption,
-                    minRating === rating && styles.ratingOptionActive,
-                  ]}
-                  onPress={() => setMinRating(rating)}
-                >
-                  <Text
-                    style={[
-                      styles.ratingOptionText,
-                      minRating === rating && styles.ratingOptionTextActive,
-                    ]}
-                  >
-                    {rating === 0 ? 'Any' : `${rating}★`}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterLabel}>Availability:</Text>
-          <View style={styles.availabilityOptions}>
-            {['', 'available', 'busy'].map((avail) => (
-              <TouchableOpacity
-                key={avail}
-                style={[
-                  styles.availabilityOption,
-                  selectedAvailability === avail && styles.availabilityOptionActive,
-                ]}
-                onPress={() => setSelectedAvailability(avail)}
-              >
-                <Text
-                  style={[
-                    styles.availabilityOptionText,
-                    selectedAvailability === avail && styles.availabilityOptionTextActive,
-                  ]}
-                >
-                  {avail === '' && 'Any'}
-                  {avail === 'available' && 'Available Now'}
-                  {avail === 'busy' && 'Busy'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <TouchableOpacity style={styles.searchButton} onPress={handleManualSearch}>
-          <Text style={styles.searchButtonText}>🔍 Search Contractors</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Search Results */}
-      <View style={styles.resultsHeader}>
-        <Text style={styles.resultsTitle}>
-          Search Results ({searchResults.length})
-        </Text>
-      </View>
-
-      {searchResults.length > 0 ? (
-        searchResults.map((contractor) => renderContractorCard(contractor))
-      ) : (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateText}>No contractors found</Text>
-          <Text style={styles.emptyStateSubtext}>Try different search criteria</Text>
-        </View>
-      )}
-    </View>
-  );
-
   return (
     <ImageBackground
-      source={{ uri: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=1200&q=80' }}
+      source={{ uri: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200&q=80' }}
       style={styles.backgroundImage}
-      blurRadius={10}
+      blurRadius={2}
     >
-      <LinearGradient
-        colors={['rgba(0,0,0,0.85)', 'rgba(0,0,0,0.95)']}
-        style={styles.container}
-      >
+      <LinearGradient colors={['rgba(0,0,0,0.7)', 'rgba(0,0,0,0.9)']} style={styles.container}>
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.header}>
@@ -337,31 +293,47 @@ const ContractorSearchScreen: React.FC<ContractorSearchScreenProps> = ({
               <Text style={styles.backButtonText}>← Back</Text>
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Find Contractors</Text>
+            <Text style={styles.headerSubtitle}>AI-Matched for Your Project</Text>
           </View>
 
-          {/* Mode Toggle */}
-          <View style={styles.modeToggle}>
-            <TouchableOpacity
-              style={[styles.modeButton, searchMode === 'ai-match' && styles.modeButtonActive]}
-              onPress={() => setSearchMode('ai-match')}
-              disabled={!projectId}
-            >
-              <Text style={[styles.modeButtonText, searchMode === 'ai-match' && styles.modeButtonTextActive]}>
-                🎯 AI Match{!projectId && ' (Select Project)'}
+          {/* Results */}
+          <View style={styles.content}>
+            <View style={styles.resultsHeader}>
+              <Text style={styles.resultsTitle}>
+                🎯 Matched Contractors ({matchedContractors.length})
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modeButton, searchMode === 'manual-search' && styles.modeButtonActive]}
-              onPress={() => setSearchMode('manual-search')}
-            >
-              <Text style={[styles.modeButtonText, searchMode === 'manual-search' && styles.modeButtonTextActive]}>
-                🔍 Manual Search
+              <Text style={styles.resultsSubtitle}>
+                Ranked by compatibility with your project
               </Text>
-            </TouchableOpacity>
-          </View>
+            </View>
 
-          {/* Content */}
-          {searchMode === 'ai-match' ? renderAIMatchView() : renderManualSearchView()}
+            {error && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+
+            {matchedContractors.length > 0 ? (
+              matchedContractors.map((contractor, index) => (
+                <View key={contractor.id}>
+                  {index === 0 && (
+                    <View style={styles.topMatchBanner}>
+                      <Text style={styles.topMatchText}>⭐ Best Match</Text>
+                    </View>
+                  )}
+                  {renderContractorCard(contractor)}
+                </View>
+              ))
+            ) : !loading && (
+              <View style={styles.emptyMatchState}>
+                <Text style={styles.emptyStateIcon}>🔍</Text>
+                <Text style={styles.emptyStateTitle}>No Matches Found</Text>
+                <Text style={styles.emptyStateText}>
+                  We couldn't find contractors matching your project criteria
+                </Text>
+              </View>
+            )}
+          </View>
         </ScrollView>
       </LinearGradient>
     </ImageBackground>
@@ -760,6 +732,76 @@ const styles = StyleSheet.create({
   emptyStateSubtext: {
     color: '#CCCCCC',
     fontSize: 14,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#CCCCCC',
+    textAlign: 'center',
+    paddingHorizontal: 40,
+  },
+  emptyStateIcon: {
+    fontSize: 60,
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  emptyMatchState: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    padding: 40,
+    alignItems: 'center',
+    marginHorizontal: 20,
+  },
+  errorContainer: {
+    backgroundColor: 'rgba(244, 67, 54, 0.1)',
+    borderColor: '#F44336',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 16,
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#F44336',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  matchReasons: {
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 175, 80, 0.3)',
+  },
+  matchReasonsTitle: {
+    color: '#4CAF50',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  matchReason: {
+    color: '#CCCCCC',
+    fontSize: 13,
+    lineHeight: 18,
+    marginVertical: 2,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#CCCCCC',
+    marginTop: 4,
   },
 });
 

@@ -28,10 +28,11 @@ interface UserProfile {
 
 interface ProfileScreenProps {
   onBack: () => void;
-  onNavigate?: (screen: 'contractorProfile') => void;
+  onNavigate?: (screen: 'contractorProfile' | 'projectProfile') => void;
+  currentUserId?: string;
 }
 
-export default function ProfileScreen({ onBack, onNavigate }: ProfileScreenProps) {
+export default function ProfileScreen({ onBack, onNavigate, currentUserId }: ProfileScreenProps) {
   const [isContractor, setIsContractor] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -59,13 +60,17 @@ export default function ProfileScreen({ onBack, onNavigate }: ProfileScreenProps
 
   // Load profile and subscription status on mount
   useEffect(() => {
-    loadProfile();
-    loadSubscriptionStatus();
-  }, []);
+    if (!currentUserId) {
+      setLoading(false);
+      return;
+    }
 
-  const loadProfile = async () => {
+    loadProfile(currentUserId);
+    loadSubscriptionStatus();
+  }, [currentUserId]);
+
+  const loadProfile = async (userId: string) => {
     try {
-      const userId = 'user_123';
       const response = await fetch(`http://localhost:3000/api/users/profile?userId=${userId}`);
       const data = await response.json();
 
@@ -138,6 +143,11 @@ export default function ProfileScreen({ onBack, onNavigate }: ProfileScreenProps
   };
 
   const handleSave = async () => {
+    if (!currentUserId) {
+      Alert.alert('Error', 'You must be logged in to update profile settings.');
+      return;
+    }
+
     const profileData = {
       ...profile,
       userType: isContractor ? 'contractor' : 'homeowner',
@@ -153,12 +163,12 @@ export default function ProfileScreen({ onBack, onNavigate }: ProfileScreenProps
 
     try {
       const response = await fetch('http://localhost:3000/api/users/profile', {
-        method: 'PUT',
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: 'user_123',
+          userId: currentUserId,
           ...profileData,
         }),
       });
@@ -188,6 +198,16 @@ export default function ProfileScreen({ onBack, onNavigate }: ProfileScreenProps
     );
   }
 
+  if (!currentUserId) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Please log in to manage your profile.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -205,7 +225,7 @@ export default function ProfileScreen({ onBack, onNavigate }: ProfileScreenProps
             <View>
               <Text style={styles.toggleLabel}>I am a Contractor</Text>
               <Text style={styles.toggleSubtext}>
-                {isContractor ? 'Contractor features enabled' : 'Switch to contractor mode'}
+                {isContractor ? 'Contractor features enabled' : 'Homeowner plan is free'}
               </Text>
             </View>
             <Switch
@@ -216,18 +236,22 @@ export default function ProfileScreen({ onBack, onNavigate }: ProfileScreenProps
             />
           </View>
           
-          {/* Contractor Profile Setup Button */}
-          {isContractor && onNavigate && (
+          {/* Profile Setup Button */}
+          {onNavigate && (
             <TouchableOpacity
               style={styles.contractorProfileButton}
-              onPress={() => onNavigate('contractorProfile')}
+              onPress={() => onNavigate(isContractor ? 'contractorProfile' : 'projectProfile')}
             >
               <View style={styles.contractorProfileContent}>
-                <Text style={styles.contractorProfileIcon}>🏆</Text>
+                <Text style={styles.contractorProfileIcon}>{isContractor ? '🏆' : '🏠'}</Text>
                 <View style={styles.contractorProfileText}>
-                  <Text style={styles.contractorProfileTitle}>Complete Contractor Profile</Text>
+                  <Text style={styles.contractorProfileTitle}>
+                    {isContractor ? 'Complete Contractor Profile' : 'Complete Homeowner Profile'}
+                  </Text>
                   <Text style={styles.contractorProfileSubtext}>
-                    Set up detailed profile for AI-powered project matching
+                    {isContractor
+                      ? 'Set up detailed profile for AI-powered project matching'
+                      : 'Set up your residential project profile and preferences'}
                   </Text>
                 </View>
                 <Text style={styles.contractorProfileArrow}>→</Text>
@@ -390,7 +414,7 @@ export default function ProfileScreen({ onBack, onNavigate }: ProfileScreenProps
                       Start your free trial and receive qualified leads immediately!
                     </Text>
                     <Text style={styles.subscriptionPrice}>
-                      Then $49.99/month after trial
+                      Then $39/month for 90 days, then $49/month
                     </Text>
                     <TouchableOpacity 
                       style={[styles.trialButton, subscriptionLoading && styles.buttonDisabled]}

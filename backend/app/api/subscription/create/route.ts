@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
+import {
+  createContractorSubscription,
+  getSubscriptionStatus,
+} from '../../../../lib/services/subscriptionService';
 
 /**
  * POST /api/subscription/create
@@ -16,57 +19,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Initialize Stripe (if API key is provided)
-    const stripe = process.env.STRIPE_SECRET_KEY
-      ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-01-28.clover' })
-      : null;
+    const result = await createContractorSubscription({ userId, paymentMethodId });
 
-    if (stripe && paymentMethodId) {
-      try {
-        // TODO: Create a Price in Stripe Dashboard first, then use price ID
-        // For now, use mock data until Stripe is fully configured with Products/Prices
-        const trialEndDate = new Date();
-        trialEndDate.setDate(trialEndDate.getDate() + 30);
-        
-        return NextResponse.json({
-          success: true,
-          subscription: {
-            id: 'sub_stripe_mock_' + Date.now(),
-            status: 'trialing',
-            trialEnd: trialEndDate.toISOString(),
-            currentPeriodEnd: trialEndDate.toISOString(),
-          },
-          message: '30-day free trial started! You will not be charged until the trial ends.',
-          note: 'Create a Product and Price in Stripe Dashboard to enable real payments',
-        });
-      } catch (stripeError: any) {
-        console.error('Stripe error:', stripeError);
-        // Fall through to mock response
-      }
+    if (!result.success) {
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: result.status }
+      );
     }
 
-    // Mock subscription response (when Stripe is not configured)
-    const trialEndDate = new Date();
-    trialEndDate.setDate(trialEndDate.getDate() + 30);
-
-    const mockSubscription = {
-      id: `sub_${Date.now()}`,
-      userId,
-      status: 'trial',
-      plan: 'contractor_pro',
-      price: 49.99,
-      trialEndsAt: trialEndDate.toISOString(),
-      createdAt: new Date().toISOString(),
-    };
-
-    // TODO: Save to database
-
-    return NextResponse.json({
-      success: true,
-      subscription: mockSubscription,
-      message: '30-day free trial activated! Start receiving leads now.',
-      note: 'Configure STRIPE_SECRET_KEY for real payment processing',
-    });
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Subscription creation error:', error);
     return NextResponse.json(
@@ -92,28 +54,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // TODO: Fetch from database
+    const result = await getSubscriptionStatus(userId);
 
-    // Mock subscription status
-    const trialEndDate = new Date();
-    trialEndDate.setDate(trialEndDate.getDate() + 20);
+    if (!result.success) {
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: result.status }
+      );
+    }
 
-    const subscription = {
-      id: 'sub_123456',
-      userId,
-      status: 'trial',
-      plan: 'contractor_pro',
-      price: 49.99,
-      trialEndsAt: trialEndDate.toISOString(),
-      daysRemaining: 20,
-      currentPeriodEnd: trialEndDate.toISOString(),
-      cancelAtPeriodEnd: false,
-    };
-
-    return NextResponse.json({
-      success: true,
-      subscription,
-    });
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Subscription status error:', error);
     return NextResponse.json(

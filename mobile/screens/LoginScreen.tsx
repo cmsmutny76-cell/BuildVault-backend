@@ -122,9 +122,9 @@ export default function LoginScreen({ onLogin, onNavigateToRegister }: LoginScre
 
           <View style={styles.demoSection}>
             <Text style={styles.demoTitle}>Demo Accounts:</Text>
-            <Text style={styles.demoText}>👤 Homeowner: user@example.com</Text>
-            <Text style={styles.demoText}>👷 Contractor: contractor@example.com</Text>
-            <Text style={styles.demoPassword}>Password: any password</Text>
+            <Text style={styles.demoText}>👤 Homeowner: homeowner@test.com</Text>
+            <Text style={styles.demoText}>👷 Contractor: contractor@test.com</Text>
+            <Text style={styles.demoPassword}>Password: password123</Text>
           </View>
         </View>
       </ScrollView>

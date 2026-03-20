@@ -1,4 +1,5 @@
 import Purchases, { PurchasesOffering, CustomerInfo } from 'react-native-purchases';
+import { syncSubscriptionToBackend } from './subscriptionSync';
 
 // RevenueCat Configuration
 const REVENUECAT_API_KEY = {
@@ -14,6 +15,7 @@ export const SUBSCRIPTION_PLANS = {
 
 class RevenueCatService {
   private initialized = false;
+  private currentUserId?: string;
 
   /**
    * Initialize RevenueCat SDK
@@ -25,6 +27,9 @@ class RevenueCatService {
     }
 
     try {
+      // Store user ID for syncing
+      this.currentUserId = userId;
+
       // Determine platform
       const platform = this.getPlatform();
       const apiKey = platform === 'ios' ? REVENUECAT_API_KEY.ios : REVENUECAT_API_KEY.android;
@@ -42,6 +47,12 @@ class RevenueCatService {
 
       this.initialized = true;
       console.log('RevenueCat initialized successfully');
+
+      // Sync initial subscription state to backend
+      if (userId) {
+        const customerInfo = await this.getCustomerInfo();
+        await this.syncToBackend(userId, customerInfo);
+      }
     } catch (error) {
       console.error('Failed to initialize RevenueCat:', error);
       throw error;
@@ -62,8 +73,12 @@ class RevenueCatService {
    */
   async login(userId: string): Promise<void> {
     try {
-      await Purchases.logIn(userId);
+      this.currentUserId = userId;
+      const { customerInfo } = await Purchases.logIn(userId);
       console.log('User logged in to RevenueCat:', userId);
+      
+      // Sync subscription state to backend
+      await this.syncToBackend(userId, customerInfo);
     } catch (error) {
       console.error('RevenueCat login failed:', error);
     }
@@ -75,6 +90,7 @@ class RevenueCatService {
   async logout(): Promise<void> {
     try {
       await Purchases.logOut();
+      this.currentUserId = undefined;
       console.log('User logged out from RevenueCat');
     } catch (error) {
       console.error('RevenueCat logout failed:', error);
@@ -127,6 +143,11 @@ class RevenueCatService {
       // Make purchase
       const { customerInfo } = await Purchases.purchasePackage(package_);
       
+      // Sync to backend
+      if (this.currentUserId) {
+        await this.syncToBackend(this.currentUserId, customerInfo);
+      }
+      
       return { success: true, customerInfo };
     } catch (error: any) {
       console.error('Purchase failed:', error);
@@ -164,6 +185,11 @@ class RevenueCatService {
 
       // Purchase will automatically use trial if available
       const { customerInfo } = await Purchases.purchasePackage(monthlyPackage);
+      
+      // Sync to backend
+      if (this.currentUserId) {
+        await this.syncToBackend(this.currentUserId, customerInfo);
+      }
       
       return { success: true, customerInfo };
     } catch (error: any) {
@@ -252,10 +278,33 @@ class RevenueCatService {
   }> {
     try {
       const customerInfo = await Purchases.restorePurchases();
+      
+      // Sync to backend
+      if (this.currentUserId) {
+        await this.syncToBackend(this.currentUserId, customerInfo);
+      }
+      
       return { success: true, customerInfo };
     } catch (error: any) {
       console.error('Restore purchases failed:', error);
       return { success: false, error: error.message || 'Restore failed' };
+    }
+  }
+
+  /**
+   * Sync subscription state to backend
+   * Private helper method
+   */
+  private async syncToBackend(userId: string, customerInfo: CustomerInfo): Promise<void> {
+    try {
+      const result = await syncSubscriptionToBackend(userId, customerInfo);
+      if (result.success) {
+        console.log('Subscription synced to backend successfully');
+      } else {
+        console.warn('Failed to sync subscription to backend:', result.error);
+      }
+    } catch (error) {
+      console.error('Error syncing subscription to backend:', error);
     }
   }
 

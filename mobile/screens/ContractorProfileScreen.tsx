@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -20,11 +20,14 @@ import {
 
 interface ContractorProfileScreenProps {
   onBack: () => void;
+  currentUserId?: string;
   isInitialSetup?: boolean;
 }
 
-export default function ContractorProfileScreen({ onBack, isInitialSetup }: ContractorProfileScreenProps) {
+export default function ContractorProfileScreen({ onBack, currentUserId, isInitialSetup }: ContractorProfileScreenProps) {
   const [currentStep, setCurrentStep] = useState<'business' | 'services' | 'certifications' | 'area'>('business');
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   
   // Business Info
   const [businessName, setBusinessName] = useState('');
@@ -61,6 +64,41 @@ export default function ContractorProfileScreen({ onBack, isInitialSetup }: Cont
   const [phone, setPhone] = useState('');
   const [website, setWebsite] = useState('');
 
+  useEffect(() => {
+    if (!currentUserId) {
+      return;
+    }
+
+    const loadProfile = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`http://localhost:3000/api/users/profile?userId=${currentUserId}`);
+        const data = await response.json();
+
+        if (response.ok && data.success && data.profile) {
+          const profile = data.profile;
+          setBusinessName(profile.businessName || '');
+          setLicenseNumber(profile.licenseNumber || '');
+          setCity(profile.city || '');
+          setState(profile.state || '');
+          setZipCode(profile.zipCode || '');
+          setEmail(profile.email || '');
+          setPhone(profile.phone || '');
+          setAdditionalZips(Array.isArray(profile.serviceAreas) ? profile.serviceAreas.join(', ') : '');
+          setServiceTypes(Array.isArray(profile.specialties) && profile.specialties.length > 0
+            ? (profile.specialties as ServiceType[])
+            : ['full-project']);
+        }
+      } catch {
+        // Keep local defaults if API load fails.
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, [currentUserId]);
+
   const toggleCategory = (category: ProjectCategory) => {
     if (categories.includes(category)) {
       setCategories(categories.filter(c => c !== category));
@@ -93,7 +131,7 @@ export default function ContractorProfileScreen({ onBack, isInitialSetup }: Cont
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Validation
     if (!businessName || !email || !phone || !city || !state || !zipCode) {
       Alert.alert('Missing Information', 'Please fill in all required fields.');
@@ -110,12 +148,50 @@ export default function ContractorProfileScreen({ onBack, isInitialSetup }: Cont
       return;
     }
 
-    // TODO: Save to backend
-    Alert.alert(
-      'Contractor Profile Saved',
-      'Your profile has been updated and will be used for AI-powered project matching.',
-      [{ text: 'OK', onPress: onBack }]
-    );
+    if (!currentUserId) {
+      Alert.alert('Save profile', 'You must be logged in to save your contractor profile.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await fetch('http://localhost:3000/api/users/profile', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: currentUserId,
+          userType: 'contractor',
+          city,
+          state,
+          zipCode,
+          phone,
+          businessName,
+          licenseNumber,
+          serviceAreas: [
+            city,
+            ...additionalZips.split(',').map((zip) => zip.trim()).filter(Boolean),
+          ],
+          specialties: serviceTypes,
+        }),
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        Alert.alert(
+          'Contractor Profile Saved',
+          'Your profile has been updated and will be used for AI-powered project matching.',
+          [{ text: 'OK', onPress: onBack }]
+        );
+      } else {
+        Alert.alert('Save failed', data.error || 'Unable to save contractor profile right now.');
+      }
+    } catch {
+      Alert.alert('Save failed', 'Unable to connect to server while saving your profile.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const renderBusinessInfo = () => (
@@ -461,6 +537,9 @@ export default function ContractorProfileScreen({ onBack, isInitialSetup }: Cont
         <Text style={styles.title}>
           {isInitialSetup ? 'Complete Your Contractor Profile' : 'Edit Contractor Profile'}
         </Text>
+        {(loading || saving) && (
+          <Text style={styles.loadingText}>{loading ? 'Loading profile…' : 'Saving profile…'}</Text>
+        )}
       </View>
 
       {/* Step Indicator */}
@@ -522,7 +601,7 @@ export default function ContractorProfileScreen({ onBack, isInitialSetup }: Cont
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-              <Text style={styles.saveButtonText}>💾 Save Contractor Profile</Text>
+              <Text style={styles.saveButtonText}>{saving ? 'Saving…' : '💾 Save Contractor Profile'}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -554,6 +633,11 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  loadingText: {
+    marginTop: 8,
+    color: '#93c5fd',
+    fontSize: 14,
   },
   stepIndicator: {
     flexDirection: 'row',

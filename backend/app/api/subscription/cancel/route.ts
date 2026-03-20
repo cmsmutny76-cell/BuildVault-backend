@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
+import { cancelContractorSubscription } from '../../../../lib/services/subscriptionService';
 
 /**
  * POST /api/subscription/cancel
@@ -16,32 +16,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const stripe = process.env.STRIPE_SECRET_KEY
-      ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-01-28.clover' })
-      : null;
+    const result = await cancelContractorSubscription({ userId, subscriptionId });
 
-    if (stripe) {
-      try {
-        // Cancel at period end to honor the paid period
-        await stripe.subscriptions.update(subscriptionId, {
-          cancel_at_period_end: true,
-        });
-
-        return NextResponse.json({
-          success: true,
-          message: 'Subscription will be cancelled at the end of the billing period',
-        });
-      } catch (stripeError: any) {
-        console.error('Stripe cancellation error:', stripeError);
-      }
+    if (!result.success) {
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: result.status }
+      );
     }
 
-    // Mock cancellation
-    return NextResponse.json({
-      success: true,
-      message: 'Subscription cancelled',
-      note: 'Configure STRIPE_SECRET_KEY for real payment processing',
-    });
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Subscription cancellation error:', error);
     return NextResponse.json(

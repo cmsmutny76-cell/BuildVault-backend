@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, TextInput, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import type { Screen } from '../types/navigation';
 
 interface Property {
   id: string;
@@ -14,7 +15,7 @@ interface Property {
 
 interface CommercialDashboardProps {
   onBack: () => void;
-  onNavigate: (screen: string) => void;
+  onNavigate: (screen: Screen) => void;
 }
 
 export default function CommercialDashboard({ onBack, onNavigate }: CommercialDashboardProps) {

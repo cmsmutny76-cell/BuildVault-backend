@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-
-// TODO: Replace with actual database
-const mockUsers = new Map();
+import { sendVerificationEmail } from '../../../../lib/email';
+import type { SubscriptionInfo } from '../../../../lib/authStore';
+import {
+  authUserExists,
+  createAuthUser,
+  createVerificationToken,
+} from '../../../../lib/services/authService';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -59,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already exists
-    if (mockUsers.has(email.toLowerCase())) {
+    if (await authUserExists(email)) {
       return NextResponse.json(
         { error: 'User with this email already exists' },
         { status: 409 }
@@ -73,7 +77,7 @@ export async function POST(request: NextRequest) {
     const userId = 'user_' + Date.now();
     
     // For contractors, create trial subscription
-    let subscription = null;
+    let subscription: SubscriptionInfo | null = null;
     if (userType === 'contractor') {
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 30); // 30-day trial
@@ -87,11 +91,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Create user object
-    const user = {
+    const user = await createAuthUser({
       id: userId,
       firstName,
       lastName,
-      email: email.toLowerCase(),
+      email,
       passwordHash,
       phone,
       address,
@@ -99,21 +103,25 @@ export async function POST(request: NextRequest) {
       state,
       zipCode,
       userType: userType || 'homeowner',
-      ...(userType === 'contractor' && {
-        businessName,
-        licenseNumber,
-        serviceAreas,
-        specialties,
-        subscription,
-      }),
-      createdAt: new Date(),
-      verified: true, // TODO: Change to false and implement email verification
-    };
+      businessName: userType === 'contractor' ? businessName : undefined,
+      licenseNumber: userType === 'contractor' ? licenseNumber : undefined,
+      serviceAreas: userType === 'contractor' ? serviceAreas : undefined,
+      specialties: userType === 'contractor' ? specialties : undefined,
+      subscription,
+      verified: false,
+    });
 
-    // Save user (currently in-memory, TODO: save to database)
-    mockUsers.set(email.toLowerCase(), user);
+    // Generate verification token in persistence store.
+    const verificationToken = await createVerificationToken(userId, email);
 
-    // Generate JWT token
+    // Send verification email
+    const emailResult = await sendVerificationEmail(email, userId, verificationToken);
+    
+    if (!emailResult.success) {
+      console.error('Failed to send verification email, but user was created');
+    }
+
+    // Generate JWT token (but user still needs to verify email to login)
     const token = jwt.sign(
       {
         userId: user.id,
@@ -127,6 +135,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       token,
+      devVerificationToken: process.env.NODE_ENV === 'development' ? verificationToken : undefined,
       user: {
         id: user.id,
         firstName: user.firstName,
@@ -136,10 +145,11 @@ export async function POST(request: NextRequest) {
         userType: user.userType,
         isContractor: user.userType === 'contractor',
         subscription: subscription,
+        verified: user.verified,
       },
       message: userType === 'contractor' 
-        ? '30-day free trial activated! Start receiving leads today.'
-        : 'Account created successfully!',
+        ? '30-day free trial activated! Please check your email to verify your account.'
+        : 'Account created successfully! Please check your email to verify your account.',
     });
   } catch (error) {
     console.error('Registration error:', error);

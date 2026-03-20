@@ -77,10 +77,17 @@ export const aiAPI = {
     }).then(res => res.json());
   },
 
-  analyzeBlueprint: async (blueprint: File | Blob, projectType: string) => {
+  analyzeBlueprint: async (
+    blueprint: File | Blob,
+    projectType: string,
+    location?: { city?: string; county?: string; state?: string; zipCode?: string }
+  ) => {
     const formData = new FormData();
     formData.append('blueprint', blueprint);
     formData.append('projectType', projectType);
+    if (location) {
+      formData.append('location', JSON.stringify(location));
+    }
 
     return fetch(`${API_BASE_URL}/ai/analyze-blueprint`, {
       method: 'POST',
@@ -88,7 +95,22 @@ export const aiAPI = {
     }).then(res => res.json());
   },
 
+  generateDescription: async (payload: {
+    projectType: string;
+    scope: string;
+    budget?: number;
+    timeline?: string;
+    location?: { city?: string; state?: string; zipCode?: string };
+    homeownerNotes?: string;
+  }) => {
+    return apiRequest('/ai/generate-description', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
   matchContractors: async (criteria: {
+    projectId: string;
     projectType: string;
     budget: number;
     location: {
@@ -122,14 +144,44 @@ export const quoteAPI = {
     notes?: string;
     validDays?: number;
   }) => {
-    return apiRequest('/quotes/generate', {
+    return apiRequest('/estimates', {
       method: 'POST',
       body: JSON.stringify(estimateData),
     });
   },
 
   getEstimates: async (projectId: string) => {
-    return apiRequest(`/quotes/generate?projectId=${projectId}`, {
+    return apiRequest(`/estimates?projectId=${projectId}`, {
+      method: 'GET',
+    });
+  },
+
+  generateMaterialQuote: async (payload: {
+    materials: Array<{ name: string; quantity: string; unit: string }>;
+    projectType?: string;
+    zipCode?: string;
+  }) => {
+    return apiRequest('/material-quotes/generate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  addRevision: async (payload: {
+    estimateId: string;
+    projectId: string;
+    updatedBy: string;
+    reason: string;
+    changes: Array<{ field: string; before: string | number; after: string | number }>;
+  }) => {
+    return apiRequest('/quotes/revisions', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  getRevisions: async (estimateId: string) => {
+    return apiRequest(`/quotes/revisions?estimateId=${estimateId}`, {
       method: 'GET',
     });
   },
@@ -140,10 +192,19 @@ export const quoteAPI = {
       body: JSON.stringify({ estimateId, userId, projectId }),
     });
   },
+
+  rejectEstimate: async (estimateId: string, userId: string, projectId: string) => {
+    return apiRequest('/quotes/reject', {
+      method: 'POST',
+      body: JSON.stringify({ estimateId, userId, projectId }),
+    });
+  },
 };
 
 // Messaging APIs
 export const messageAPI = {
+  getStreamUrl: (userId: string) => `${API_BASE_URL}/messages/stream?userId=${encodeURIComponent(userId)}`,
+
   getConversations: async (userId: string) => {
     return apiRequest(`/messages?userId=${userId}`, {
       method: 'GET',
@@ -186,10 +247,39 @@ export const userAPI = {
     });
   },
 
-  updateProfile: async (userId: string, profileData: any) => {
+  updateProfile: async (userId: string, profileData: Record<string, unknown>) => {
     return apiRequest('/users/profile', {
       method: 'PATCH',
       body: JSON.stringify({ userId, ...profileData }),
+    });
+  },
+};
+
+export const contractorAPI = {
+  setAvailability: async (contractorId: string, availability: 'available' | 'busy' | 'booked') => {
+    return apiRequest('/contractors/availability', {
+      method: 'POST',
+      body: JSON.stringify({ contractorId, availability }),
+    });
+  },
+
+  getAvailabilityOverrides: async () => {
+    return apiRequest('/contractors/availability', {
+      method: 'GET',
+    });
+  },
+};
+
+export const projectAPI = {
+  getProjects: async () => {
+    return apiRequest('/projects', {
+      method: 'GET',
+    });
+  },
+
+  getProject: async (projectId: string) => {
+    return apiRequest(`/projects/${projectId}`, {
+      method: 'GET',
     });
   },
 };
@@ -200,4 +290,6 @@ export default {
   quote: quoteAPI,
   message: messageAPI,
   user: userAPI,
+  contractor: contractorAPI,
+  project: projectAPI,
 };

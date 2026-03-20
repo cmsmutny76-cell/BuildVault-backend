@@ -9,7 +9,18 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "next": "16.1.6",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/nodemailer": "^7.0.11",
+    "@types/pdfkit": "^0.17.5",
+    "@types/pg": "^8.18.0",
+    "bcryptjs": "^3.0.3",
+    "jsonwebtoken": "^9.0.3",
+    "next": "^16.2.0",
+    "nodemailer": "^8.0.1",
+    "openai": "^6.32.0",
+    "pdfkit": "^0.17.2",
+    "pg": "^8.20.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "stripe": "^20.3.1"
