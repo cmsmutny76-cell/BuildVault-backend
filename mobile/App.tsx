@@ -66,6 +66,11 @@ interface Project {
 }
 
 export default function App() {
+  const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL;
+  const configuredApiOrigin = configuredApiUrl
+    ? configuredApiUrl.replace(/\/api\/?$/, '')
+    : null;
+
   const [currentScreen, setCurrentScreen] = useState<Screen>('login');
   const [navigationStack, setNavigationStack] = useState<Screen[]>([]);
   const [user, setUser] = useState<User | null>(null);
@@ -86,6 +91,39 @@ export default function App() {
       revenueCatService.initialize(user.id);
     }
   }, [user]);
+
+  // Rewrite legacy localhost API calls to configured backend host
+  useEffect(() => {
+    if (!configuredApiOrigin) {
+      console.warn('EXPO_PUBLIC_API_URL is not set. App may fail to reach backend outside local development.');
+      return;
+    }
+
+    const originalFetch = global.fetch.bind(global);
+
+    global.fetch = ((input: any, init?: RequestInit) => {
+      const localhostOrigin = 'http://localhost:3000';
+
+      if (typeof input === 'string' && input.startsWith(localhostOrigin)) {
+        const rewritten = input.replace(localhostOrigin, configuredApiOrigin);
+        return originalFetch(rewritten, init);
+      }
+
+      if (input instanceof Request && input.url.startsWith(localhostOrigin)) {
+        const rewrittenRequest = new Request(
+          input.url.replace(localhostOrigin, configuredApiOrigin),
+          input
+        );
+        return originalFetch(rewrittenRequest, init);
+      }
+
+      return originalFetch(input, init);
+    }) as typeof fetch;
+
+    return () => {
+      global.fetch = originalFetch as typeof fetch;
+    };
+  }, [configuredApiOrigin]);
 
   // Handle deep links for email verification
   useEffect(() => {
