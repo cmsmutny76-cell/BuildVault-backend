@@ -32,6 +32,11 @@ yarn-error.log*
 .expo/
 .expo-shared/
 
+# Mobile release artifact extracts (generated from .aab/.apk inspection)
+/mobile/release-artifacts/_extract*/
+/mobile/release-artifacts/*.aab
+/mobile/release-artifacts/**/*.aab
+
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
