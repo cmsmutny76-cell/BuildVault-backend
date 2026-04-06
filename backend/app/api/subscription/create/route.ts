@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  createContractorSubscription,
-  getSubscriptionStatus,
-} from '../../../../lib/services/subscriptionService';
+import { findUserById, updateUserById } from '../../../../lib/server/authStore';
+
+const SUBSCRIPTION_BY_USER_TYPE: Record<string, { plan: string; price: number } | null> = {
+  homeowner: null,
+  employment_seeker: null,
+  contractor: { plan: 'contractor_pro', price: 49.99 },
+  commercial_builder: { plan: 'commercial_pro', price: 99.99 },
+  multi_family_owner: { plan: 'commercial_pro', price: 99.99 },
+  apartment_owner: { plan: 'commercial_pro', price: 99.99 },
+  developer: { plan: 'commercial_pro', price: 99.99 },
+  landscaper: { plan: 'landscaper_pro', price: 49.99 },
+  school: { plan: 'school_pro', price: 49.99 },
+};
 
 /**
  * POST /api/subscription/create
@@ -10,7 +19,7 @@ import {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { userId, paymentMethodId } = await request.json();
+    const { userId } = await request.json();
 
     if (!userId) {
       return NextResponse.json(
@@ -19,16 +28,49 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await createContractorSubscription({ userId, paymentMethodId });
-
-    if (!result.success) {
+    const user = await findUserById(userId);
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: result.error },
-        { status: result.status }
+        { error: 'User not found' },
+        { status: 404 }
       );
     }
 
-    return NextResponse.json(result);
+    const planInfo = SUBSCRIPTION_BY_USER_TYPE[user.userType];
+
+    if (!planInfo) {
+      const updatedUser = await updateUserById(userId, {
+        subscription: {
+          status: 'active',
+          plan: 'free',
+          price: 0,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        subscription: updatedUser?.subscription || null,
+        message: 'Free access is active for this account type.',
+      });
+    }
+
+    const trialEndDate = new Date();
+    trialEndDate.setDate(trialEndDate.getDate() + 30);
+
+    const updatedUser = await updateUserById(userId, {
+      subscription: {
+        status: 'trial',
+        plan: planInfo.plan,
+        price: planInfo.price,
+        trialEndsAt: trialEndDate.toISOString(),
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      subscription: updatedUser?.subscription || null,
+      message: '30-day free trial activated! Start receiving leads now.',
+    });
   } catch (error) {
     console.error('Subscription creation error:', error);
     return NextResponse.json(
@@ -54,16 +96,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const result = await getSubscriptionStatus(userId);
+    const user = await findUserById(userId);
 
-    if (!result.success) {
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: result.error },
-        { status: result.status }
+        { error: 'User not found' },
+        { status: 404 }
       );
     }
 
-    return NextResponse.json(result);
+    const subscription = user.subscription || {
+      status: 'none',
+      plan: 'free',
+      price: 0,
+    };
+
+    return NextResponse.json({
+      success: true,
+      subscription,
+    });
   } catch (error) {
     console.error('Subscription status error:', error);
     return NextResponse.json(

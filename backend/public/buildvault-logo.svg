@@ -1,0 +1,110 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="url(#bgGradient)"/>
+  
+  <!-- Gradient definitions -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF6B35;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F7931E;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="blueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1E3A8A;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3B82F6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Vault door outer circle -->
+  <circle cx="256" cy="256" r="220" fill="url(#blueGradient)" stroke="#F7931E" stroke-width="12"/>
+  
+  <!-- Vault door segments (like a bank vault) -->
+  <path d="M 256 256 L 256 36" stroke="#F7931E" stroke-width="4" opacity="0.6"/>
+  <path d="M 256 256 L 476 256" stroke="#F7931E" stroke-width="4" opacity="0.6"/>
+  <path d="M 256 256 L 256 476" stroke="#F7931E" stroke-width="4" opacity="0.6"/>
+  <path d="M 256 256 L 36 256" stroke="#F7931E" stroke-width="4" opacity="0.6"/>
+  
+  <!-- Diagonal vault lines -->
+  <path d="M 256 256 L 411 101" stroke="#F7931E" stroke-width="3" opacity="0.4"/>
+  <path d="M 256 256 L 411 411" stroke="#F7931E" stroke-width="3" opacity="0.4"/>
+  <path d="M 256 256 L 101 411" stroke="#F7931E" stroke-width="3" opacity="0.4"/>
+  <path d="M 256 256 L 101 101" stroke="#F7931E" stroke-width="3" opacity="0.4"/>
+  
+  <!-- Inner vault ring -->
+  <circle cx="256" cy="256" r="140" fill="none" stroke="#F7931E" stroke-width="8"/>
+  
+  <!-- Construction icons in quadrants -->
+  
+  <!-- Top Left: Residential House -->
+  <g transform="translate(130, 100)">
+    <path d="M40 75 L75 40 L110 75 L110 125 L40 125 Z" fill="white" opacity="0.9"/>
+    <path d="M75 40 L110 75" stroke="#1E3A8A" stroke-width="4"/>
+    <path d="M40 75 L75 40" stroke="#1E3A8A" stroke-width="4"/>
+    <rect x="60" y="95" width="20" height="25" fill="#FF6B35"/>
+    <rect x="85" y="80" width="15" height="15" fill="#3B82F6"/>
+  </g>
+  
+  <!-- Top Right: Commercial Skyscraper -->
+  <g transform="translate(282, 100)">
+    <rect x="50" y="40" width="50" height="85" fill="white" stroke="#1E3A8A" stroke-width="4" opacity="0.9"/>
+    <rect x="55" y="50" width="10" height="10" fill="#3B82F6"/>
+    <rect x="70" y="50" width="10" height="10" fill="#3B82F6"/>
+    <rect x="85" y="50" width="10" height="10" fill="#3B82F6"/>
+    <rect x="55" y="65" width="10" height="10" fill="#3B82F6"/>
+    <rect x="70" y="65" width="10" height="10" fill="#3B82F6"/>
+    <rect x="85" y="65" width="10" height="10" fill="#3B82F6"/>
+    <rect x="55" y="80" width="10" height="10" fill="#3B82F6"/>
+    <rect x="70" y="80" width="10" height="10" fill="#3B82F6"/>
+    <rect x="85" y="80" width="10" height="10" fill="#3B82F6"/>
+    <rect x="55" y="95" width="10" height="10" fill="#3B82F6"/>
+    <rect x="70" y="95" width="10" height="10" fill="#3B82F6"/>
+    <rect x="85" y="95" width="10" height="10" fill="#3B82F6"/>
+    <rect x="60" y="110" width="30" height="15" fill="#FF6B35"/>
+  </g>
+  
+  <!-- Bottom Left: Hammer & Wrench Tools -->
+  <g transform="translate(130, 287)">
+    <!-- Hammer -->
+    <rect x="45" y="50" width="12" height="60" fill="#D1D5DB" rx="2"/>
+    <rect x="40" y="45" width="22" height="15" fill="#6B7280" rx="2"/>
+    
+    <!-- Wrench -->
+    <path d="M90 60 L90 100" stroke="#D1D5DB" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="90" cy="55" r="8" fill="none" stroke="#6B7280" stroke-width="4"/>
+    <circle cx="90" cy="105" r="10" fill="none" stroke="#6B7280" stroke-width="4"/>
+    
+    <!-- Orange accent circle -->
+    <circle cx="75" cy="80" r="8" fill="#FF6B35"/>
+  </g>
+  
+  <!-- Bottom Right: Blueprint/Plans -->
+  <g transform="translate(282, 287)">
+    <rect x="45" y="45" width="65" height="75" fill="white" stroke="#1E3A8A" stroke-width="4" rx="3" opacity="0.9"/>
+    <!-- Grid lines -->
+    <line x1="50" y1="60" x2="105" y2="60" stroke="#3B82F6" stroke-width="1.5" opacity="0.5"/>
+    <line x1="50" y1="75" x2="105" y2="75" stroke="#3B82F6" stroke-width="1.5" opacity="0.5"/>
+    <line x1="50" y1="90" x2="105" y2="90" stroke="#3B82F6" stroke-width="1.5" opacity="0.5"/>
+    <line x1="50" y1="105" x2="105" y2="105" stroke="#3B82F6" stroke-width="1.5" opacity="0.5"/>
+    <line x1="65" y1="50" x2="65" y2="115" stroke="#3B82F6" stroke-width="1.5" opacity="0.5"/>
+    <line x1="77" y1="50" x2="77" y2="115" stroke="#3B82F6" stroke-width="1.5" opacity="0.5"/>
+    <line x1="90" y1="50" x2="90" y2="115" stroke="#3B82F6" stroke-width="1.5" opacity="0.5"/>
+    <!-- Floor plan rectangle -->
+    <rect x="55" y="65" width="20" height="25" fill="none" stroke="#FF6B35" stroke-width="2.5"/>
+    <rect x="80" y="65" width="20" height="25" fill="none" stroke="#FF6B35" stroke-width="2.5"/>
+  </g>
+  
+  <!-- Center vault lock with BV -->
+  <circle cx="256" cy="256" r="70" fill="#F7931E"/>
+  <circle cx="256" cy="256" r="60" fill="white"/>
+  
+  <!-- BV Text -->
+  <text x="256" y="280" font-family="Arial, sans-serif" font-size="56" font-weight="bold" fill="#1E3A8A" text-anchor="middle">BV</text>
+  
+  <!-- Vault lock dial details -->
+  <circle cx="256" cy="256" r="72" fill="none" stroke="#1E3A8A" stroke-width="3"/>
+  
+  <!-- Vault lock notches -->
+  <path d="M 256 184 L 256 174" stroke="#1E3A8A" stroke-width="3"/>
+  <path d="M 328 256 L 338 256" stroke="#1E3A8A" stroke-width="3"/>
+  <path d="M 256 328 L 256 338" stroke="#1E3A8A" stroke-width="3"/>
+  <path d="M 184 256 L 174 256" stroke="#1E3A8A" stroke-width="3"/>
+</svg>

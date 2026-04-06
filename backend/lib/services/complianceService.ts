@@ -1,6 +1,57 @@
 import OpenAI from 'openai';
 import { logPlatformEvent } from '../eventLogger';
 
+async function searchBuildingCodes(location: BuildingCodesLocation, projectType?: string): Promise<string> {
+  const tavilyKey = process.env.TAVILY_API_KEY;
+  if (!tavilyKey) return '';
+
+  const query = [
+    location.city,
+    location.county,
+    location.state,
+    projectType || 'residential construction',
+    'building codes requirements',
+    new Date().getFullYear(),
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  try {
+    const response = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: tavilyKey,
+        query,
+        search_depth: 'basic',
+        include_domains: ['up.codes', 'iccsafe.org', 'hud.gov', 'osha.gov', 'epa.gov', 'gov'],
+        max_results: 5,
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn('Tavily search failed:', response.status);
+      return '';
+    }
+
+    const data = (await response.json()) as {
+      results?: Array<{ title?: string; url?: string; content?: string }>;
+    };
+
+    if (!data.results?.length) return '';
+
+    return data.results
+      .map(
+        (r, i) =>
+          `[Source ${i + 1}] ${r.title || 'No title'}\nURL: ${r.url || ''}\n${r.content || ''}`,
+      )
+      .join('\n\n---\n\n');
+  } catch (err) {
+    console.warn('Tavily search error:', err);
+    return '';
+  }
+}
+
 export interface BuildingCodesLocation {
   city?: string;
   county?: string;
@@ -9,12 +60,69 @@ export interface BuildingCodesLocation {
   projectType?: string;
 }
 
+function buildAgencyDirectory(location: BuildingCodesLocation) {
+  return {
+    city: [
+      {
+        name: `${location.city || 'City'} Building Department`,
+        scope: 'city',
+        url: `https://www.google.com/search?q=${encodeURIComponent(`${location.city || ''} ${location.state} building department`)}`,
+      },
+      {
+        name: `${location.city || 'City'} Planning & Zoning`,
+        scope: 'city',
+        url: `https://www.google.com/search?q=${encodeURIComponent(`${location.city || ''} ${location.state} planning and zoning`)}`,
+      },
+    ],
+    county: [
+      {
+        name: `${location.county || location.city || 'County'} Code Enforcement`,
+        scope: 'county',
+        url: `https://www.google.com/search?q=${encodeURIComponent(`${location.county || location.city || ''} ${location.state} code enforcement`)}`,
+      },
+    ],
+    state: [
+      {
+        name: `${location.state} State Building Code Agency`,
+        scope: 'state',
+        url: `https://www.google.com/search?q=${encodeURIComponent(`${location.state} building code office`)}`,
+      },
+    ],
+    federal: [
+      {
+        name: 'U.S. Department of Housing and Urban Development (HUD)',
+        scope: 'federal',
+        url: 'https://www.hud.gov/',
+      },
+      {
+        name: 'Occupational Safety and Health Administration (OSHA)',
+        scope: 'federal',
+        url: 'https://www.osha.gov/',
+      },
+      {
+        name: 'Environmental Protection Agency (EPA)',
+        scope: 'federal',
+        url: 'https://www.epa.gov/',
+      },
+    ],
+  };
+}
+
 export async function fetchBuildingCodes(location: BuildingCodesLocation, projectType?: string) {
+    const agencies = buildAgencyDirectory(location);
+
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY || '',
   });
 
-  const codePrompt = `Generate typical building code requirements for a ${projectType || 'residential construction'} project in ${location.city || location.county || ''}, ${location.state}.
+  // Retrieve real-time building code information from the web before asking GPT
+  const searchContext = await searchBuildingCodes(location, projectType);
+
+  const systemMessage = searchContext
+    ? `You are a building code expert familiar with IBC, IRC, and local building codes across the United States.\n\nThe following real-time search results have been retrieved for this jurisdiction. Use them as your primary source of truth — cite code sections and requirements found in these pages where possible:\n\n${searchContext}`
+    : 'You are a building code expert familiar with IBC, IRC, and local building codes across the United States.';
+
+  const codePrompt = `Generate specific building code requirements for a ${projectType || 'residential construction'} project in ${location.city || location.county || ''}, ${location.state}${location.zipCode ? ` (ZIP: ${location.zipCode})` : ''}.
 
 Include requirements for:
 1. Structural (framing, foundation, load-bearing requirements)
@@ -28,6 +136,8 @@ Include requirements for:
 
 Focus on ADDITIONAL HARDWARE that must be purchased to meet code (e.g., hurricane ties, seismic anchors, GFCI outlets, specific connectors, etc.).
 
+${searchContext ? 'Use the provided search context to give accurate, current, jurisdiction-specific requirements with actual code section numbers.' : 'Provide requirements based on current IBC/IRC standards applicable to this jurisdiction.'}
+
 Provide response in JSON format with categories and specific requirements.`;
 
   try {
@@ -36,7 +146,7 @@ Provide response in JSON format with categories and specific requirements.`;
       messages: [
         {
           role: 'system',
-          content: 'You are a building code expert familiar with IBC, IRC, and local building codes across the United States.',
+          content: systemMessage,
         },
         {
           role: 'user',
@@ -61,9 +171,13 @@ Provide response in JSON format with categories and specific requirements.`;
     const result = {
       success: true,
       location,
+      agencies,
       codes: codesData,
       model: 'gpt-4o',
-      disclaimer: 'AI-generated code requirements. Always verify with local building department.',
+      searchGrounded: !!searchContext,
+      disclaimer: searchContext
+        ? 'AI-generated code requirements based on current web sources. Always verify with local building department.'
+        : 'AI-generated code requirements (no live search context). Always verify with local building department.',
     };
 
     logPlatformEvent({
@@ -76,6 +190,7 @@ Provide response in JSON format with categories and specific requirements.`;
         county: location.county,
         projectType,
         model: result.model,
+        searchGrounded: result.searchGrounded,
       },
     });
 
@@ -86,6 +201,7 @@ Provide response in JSON format with categories and specific requirements.`;
     const result = {
       success: true,
       location,
+      agencies,
       codes: {
         structural: {
           requirements: [
@@ -150,7 +266,8 @@ Provide response in JSON format with categories and specific requirements.`;
         },
       },
       model: 'mock-data',
-      disclaimer: 'Mock building codes - configure OPENAI_API_KEY and implement code scraping for real data',
+      searchGrounded: false,
+      disclaimer: 'Mock building codes (fallback) — configure OPENAI_API_KEY for AI-generated codes with Tavily live search.',
     };
 
     logPlatformEvent({

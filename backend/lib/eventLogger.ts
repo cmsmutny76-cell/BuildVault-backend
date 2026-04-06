@@ -13,7 +13,8 @@ export type PlatformEventType =
   | 'building_codes_generated'
   | 'user_profile_updated'
   | 'estimate_pdf_generated'
-  | 'estimate_pdf_emailed';
+  | 'estimate_pdf_emailed'
+  | 'code_hardware_quantity_estimated';
 
 export interface PlatformEvent {
   id: string;

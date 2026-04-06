@@ -31,7 +31,7 @@ async function assembleEstimatePdfData(estimateId: string, recipientEmail?: stri
       name: contractorName,
       businessName: contractorUser?.businessName,
       email: contractorUser?.email ?? 'contractor@example.com',
-      phone: contractorUser?.phone,
+      phone: contractorUser?.phone ?? '',
       address: contractorUser?.address,
     },
     homeowner: {
@@ -53,7 +53,13 @@ async function assembleEstimatePdfData(estimateId: string, recipientEmail?: stri
 
 export async function generateEstimateDocument(estimateId: string): Promise<{ estimateData: EstimatePdfData; pdfBuffer: Buffer }> {
   const estimateData = await assembleEstimatePdfData(estimateId);
-  const pdfBuffer = await generateEstimatePDF(estimateData);
+  const pdfBuffer = await generateEstimatePDF({
+    ...estimateData,
+    contractor: {
+      ...estimateData.contractor,
+      phone: estimateData.contractor.phone ?? '',
+    },
+  });
 
   logPlatformEvent({
     type: 'estimate_pdf_generated',
@@ -75,7 +81,13 @@ export async function emailEstimateDocument(input: {
   sendCopy?: boolean;
 }): Promise<{ messageId: string }> {
   const estimateData = await assembleEstimatePdfData(input.estimateId, input.recipientEmail);
-  const pdfBuffer = await generateEstimatePDF(estimateData);
+  const pdfBuffer = await generateEstimatePDF({
+    ...estimateData,
+    contractor: {
+      ...estimateData.contractor,
+      phone: estimateData.contractor.phone ?? '',
+    },
+  });
 
   if (!isEmailEnabled()) {
     logPlatformEvent({

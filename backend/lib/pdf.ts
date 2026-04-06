@@ -1,8 +1,44 @@
 import PDFDocument from 'pdfkit';
 import { Readable } from 'stream';
-import { type EstimatePdfData } from './domain/estimate';
 
-export async function generateEstimatePDF(estimateData: EstimatePdfData): Promise<Buffer> {
+interface LineItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  category: 'labor' | 'materials' | 'equipment' | 'permits' | 'other';
+}
+
+interface EstimateData {
+  id: string;
+  projectTitle: string;
+  projectId: string;
+  contractor: {
+    name: string;
+    businessName?: string;
+    email: string;
+    phone: string;
+    address?: string;
+    licenseNumber?: string;
+  };
+  homeowner: {
+    name: string;
+    email: string;
+    phone?: string;
+    address?: string;
+  };
+  lineItems: LineItem[];
+  subtotal: number;
+  taxRate: number;
+  tax: number;
+  total: number;
+  notes?: string;
+  validUntil: string;
+  createdAt: string;
+}
+
+export async function generateEstimatePDF(estimateData: EstimateData): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     try {
       // Create PDF document

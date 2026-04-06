@@ -3,10 +3,13 @@ import { sendVerificationEmail } from '../../../../lib/email';
 import {
   createVerificationToken,
   deleteVerificationToken,
-  getAuthUserByEmail,
+  findUserByEmail,
   getVerificationToken,
-  markAuthUserVerified,
-} from '../../../../lib/services/authService';
+  generateToken,
+  updateUserByEmail,
+} from '../../../../lib/server/authStore';
+
+export const runtime = 'nodejs';
 
 /**
  * GET /api/auth/verify-email?token=xxx&userId=yyy
@@ -51,7 +54,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Find and update user
-    const user = await getAuthUserByEmail(tokenData.email);
+    const user = await findUserByEmail(tokenData.email);
     
     if (!user) {
       return NextResponse.json(
@@ -61,7 +64,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Mark user as verified
-    await markAuthUserVerified(user.id);
+    await updateUserByEmail(tokenData.email, {
+      verified: true,
+      verifiedAt: new Date().toISOString(),
+    });
 
     // Delete used token
     await deleteVerificationToken(token);
@@ -96,7 +102,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find user
-    const user = await getAuthUserByEmail(email);
+    const user = await findUserByEmail(email);
     
     if (!user) {
       // For security, don't reveal if user exists
@@ -113,8 +119,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate new verification token in shared store.
-    const verificationToken = await createVerificationToken(user.id, email);
+    // Generate new verification token
+    const verificationToken = generateToken();
+
+    await createVerificationToken(verificationToken, {
+      userId: user.id,
+      email: email.toLowerCase(),
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+    });
 
     // Send verification email
     const emailResult = await sendVerificationEmail(email, user.id, verificationToken);
@@ -130,7 +142,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Verification email sent successfully',
-      devVerificationToken: process.env.NODE_ENV === 'development' ? verificationToken : undefined,
     });
   } catch (error) {
     console.error('Resend verification error:', error);

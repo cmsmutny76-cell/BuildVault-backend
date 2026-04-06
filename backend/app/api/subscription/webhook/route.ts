@@ -1,4 +1,125 @@
 import { NextRequest, NextResponse } from 'next/server';
+import Stripe from 'stripe';
+import { findUserByEmail, updateUserById } from '../../../../lib/server/authStore';
+
+export const runtime = 'nodejs';
+
+const PLAN_BY_KEY: Record<string, { plan: string; price: number }> = {
+  pro49: { plan: 'contractor_pro', price: 49.99 },
+  pro99: { plan: 'commercial_pro', price: 99.99 },
+};
+
+function getStripeClient() {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) return null;
+  return new Stripe(key, { apiVersion: '2026-01-28.clover' });
+}
+
+async function handleStripeCheckoutCompleted(stripe: Stripe, event: Stripe.Event) {
+  const session = event.data.object as Stripe.Checkout.Session;
+  const userId = session.metadata?.userId;
+
+  if (!userId) {
+    console.warn('Stripe checkout session missing userId metadata');
+    return;
+  }
+
+  const selectedPlan = session.metadata?.planKey || 'pro49';
+  const mappedPlan = PLAN_BY_KEY[selectedPlan] || PLAN_BY_KEY.pro49;
+
+  let trialEndsAt: string | undefined;
+  if (typeof session.subscription === 'string') {
+    try {
+      const subscription = await stripe.subscriptions.retrieve(session.subscription);
+      if (subscription.trial_end) {
+        trialEndsAt = new Date(subscription.trial_end * 1000).toISOString();
+      }
+    } catch (error) {
+      console.warn('Failed to retrieve Stripe subscription details:', error);
+    }
+  }
+
+  await updateUserById(userId, {
+    subscription: {
+      status: trialEndsAt ? 'trial' : 'active',
+      plan: mappedPlan.plan,
+      price: mappedPlan.price,
+      trialEndsAt,
+    },
+  });
+}
+
+async function handleStripeSubscriptionDeleted(event: Stripe.Event) {
+  const subscription = event.data.object as Stripe.Subscription;
+  const userId = subscription.metadata?.userId;
+
+  if (!userId) return;
+
+  await updateUserById(userId, {
+    subscription: {
+      status: 'cancelled',
+      plan: 'free',
+      price: 0,
+    },
+  });
+}
+
+async function handleStripeInvoicePaymentFailed(event: Stripe.Event) {
+  const invoice = event.data.object as Stripe.Invoice;
+
+  const email = invoice.customer_email;
+  if (!email) return;
+
+  const user = await findUserByEmail(email);
+  if (!user) return;
+
+  await updateUserById(user.id, {
+    subscription: {
+      status: 'past_due',
+      plan: user.subscription?.plan || 'contractor_pro',
+      price: user.subscription?.price || 49.99,
+      trialEndsAt: user.subscription?.trialEndsAt,
+    },
+  });
+}
+
+async function processStripeWebhook(request: NextRequest, signature: string) {
+  const stripe = getStripeClient();
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (!stripe || !webhookSecret) {
+    return NextResponse.json(
+      { error: 'Stripe webhook is not configured' },
+      { status: 500 }
+    );
+  }
+
+  const rawBody = await request.text();
+  let event: Stripe.Event;
+
+  try {
+    event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+  } catch (error) {
+    console.error('Stripe webhook signature validation failed:', error);
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
+  }
+
+  switch (event.type) {
+    case 'checkout.session.completed':
+      await handleStripeCheckoutCompleted(stripe, event);
+      break;
+    case 'customer.subscription.deleted':
+      await handleStripeSubscriptionDeleted(event);
+      break;
+    case 'invoice.payment_failed':
+      await handleStripeInvoicePaymentFailed(event);
+      break;
+    default:
+      console.log('Unhandled Stripe event type:', event.type);
+  }
+
+  return NextResponse.json({ received: true, provider: 'stripe' });
+}
 
 /**
  * POST /api/subscription/webhook
@@ -16,6 +137,11 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 export async function POST(request: NextRequest) {
   try {
+    const stripeSignature = request.headers.get('stripe-signature');
+    if (stripeSignature) {
+      return processStripeWebhook(request, stripeSignature);
+    }
+
     const event = await request.json();
     
     console.log('RevenueCat webhook received:', event.type);
@@ -86,23 +212,15 @@ async function handleInitialPurchase(
   expirationMs: number
 ) {
   console.log(`Initial purchase: User ${userId} subscribed to ${productId}${isTrial ? ' (trial)' : ''}`);
-  
-  // TODO: Update database
-  // const subscription = {
-  //   userId,
-  //   productId,
-  //   status: isTrial ? 'trial' : 'active',
-  //   expiresAt: new Date(expirationMs),
-  //   createdAt: new Date(),
-  // };
-  // await db.subscriptions.upsert(subscription);
-  
-  // TODO: Send welcome email
-  // if (isTrial) {
-  //   await sendTrialStartedEmail(userId);
-  // } else {
-  //   await sendSubscriptionStartedEmail(userId);
-  // }
+
+  await updateUserById(userId, {
+    subscription: {
+      status: isTrial ? 'trial' : 'active',
+      plan: productId,
+      price: productId.includes('99') ? 99.99 : 49.99,
+      trialEndsAt: expirationMs ? new Date(expirationMs).toISOString() : undefined,
+    },
+  });
 }
 
 async function handleRenewal(
@@ -111,16 +229,15 @@ async function handleRenewal(
   expirationMs: number
 ) {
   console.log(`Renewal: User ${userId} subscription renewed until ${new Date(expirationMs)}`);
-  
-  // TODO: Update database
-  // await db.subscriptions.update({
-  //   where: { userId },
-  //   data: {
-  //     status: 'active',
-  //     expiresAt: new Date(expirationMs),
-  //     updatedAt: new Date(),
-  //   },
-  // });
+
+  await updateUserById(userId, {
+    subscription: {
+      status: 'active',
+      plan: productId,
+      price: productId.includes('99') ? 99.99 : 49.99,
+      trialEndsAt: expirationMs ? new Date(expirationMs).toISOString() : undefined,
+    },
+  });
 }
 
 async function handleCancellation(
@@ -128,50 +245,37 @@ async function handleCancellation(
   expirationMs: number
 ) {
   console.log(`Cancellation: User ${userId} cancelled, access until ${new Date(expirationMs)}`);
-  
-  // TODO: Update database
-  // await db.subscriptions.update({
-  //   where: { userId },
-  //   data: {
-  //     status: 'cancelled',
-  //     cancelledAt: new Date(),
-  //     expiresAt: new Date(expirationMs), // Still has access until end of period
-  //     updatedAt: new Date(),
-  //   },
-  // });
-  
-  // TODO: Send cancellation confirmation email
-  // await sendCancellationEmail(userId, new Date(expirationMs));
+
+  await updateUserById(userId, {
+    subscription: {
+      status: 'cancelled',
+      plan: 'free',
+      price: 0,
+      trialEndsAt: expirationMs ? new Date(expirationMs).toISOString() : undefined,
+    },
+  });
 }
 
 async function handleExpiration(userId: string) {
   console.log(`Expiration: User ${userId} subscription expired`);
-  
-  // TODO: Update database
-  // await db.subscriptions.update({
-  //   where: { userId },
-  //   data: {
-  //     status: 'expired',
-  //     updatedAt: new Date(),
-  //   },
-  // });
-  
-  // TODO: Send expiration email with re-subscribe CTA
-  // await sendExpirationEmail(userId);
+
+  await updateUserById(userId, {
+    subscription: {
+      status: 'expired',
+      plan: 'free',
+      price: 0,
+    },
+  });
 }
 
 async function handleBillingIssue(userId: string) {
   console.log(`Billing issue: User ${userId} has a payment problem`);
-  
-  // TODO: Update database
-  // await db.subscriptions.update({
-  //   where: { userId },
-  //   data: {
-  //     status: 'past_due',
-  //     updatedAt: new Date(),
-  //   },
-  // });
-  
-  // TODO: Send payment failure email
-  // await sendPaymentFailedEmail(userId);
+
+  await updateUserById(userId, {
+    subscription: {
+      status: 'past_due',
+      plan: 'contractor_pro',
+      price: 49.99,
+    },
+  });
 }

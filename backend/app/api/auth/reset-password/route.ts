@@ -4,10 +4,13 @@ import { sendPasswordResetEmail } from '../../../../lib/email';
 import {
   createPasswordResetToken,
   deletePasswordResetToken,
-  getAuthUserByEmail,
+  findUserByEmail,
+  generateToken,
   getPasswordResetToken,
-  updateAuthUserPasswordByEmail,
-} from '../../../../lib/services/authService';
+  updateUserByEmail,
+} from '../../../../lib/server/authStore';
+
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,7 +20,7 @@ export async function POST(request: NextRequest) {
     // If only email is provided, send reset link
     if (email && !token && !newPassword) {
       // TODO: Check if user exists in database
-      const userExists = Boolean(await getAuthUserByEmail(email));
+      const userExists = await findUserByEmail(email);
       
       if (!userExists) {
         // For security, don't reveal if email exists or not
@@ -27,8 +30,12 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Generate reset token in shared store.
-      const resetToken = await createPasswordResetToken(email);
+      // Generate reset token
+      const resetToken = generateToken();
+      await createPasswordResetToken(resetToken, {
+        email: email.toLowerCase(),
+        expiresAt: Date.now() + 3600000, // 1 hour
+      });
 
       // Send email with reset link
       const emailResult = await sendPasswordResetEmail(email, resetToken);
@@ -72,8 +79,11 @@ export async function POST(request: NextRequest) {
       }
 
       // Update password
-      const passwordHash = await bcrypt.hash(newPassword, 10);
-      await updateAuthUserPasswordByEmail(resetData.email, passwordHash);
+      const user = await findUserByEmail(resetData.email);
+      if (user) {
+        const passwordHash = await bcrypt.hash(newPassword, 10);
+        await updateUserByEmail(resetData.email, { passwordHash });
+      }
 
       // Invalidate token
       await deletePasswordResetToken(token);

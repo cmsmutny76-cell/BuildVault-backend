@@ -1,9 +1,10 @@
-import type { NextConfig } from "next";
+const path = require('path');
 
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+module.exports = {
   reactCompiler: true,
   turbopack: {
-    root: process.cwd(),
+    root: path.join(__dirname, '..'),
   },
   async headers() {
     return [
@@ -18,5 +19,3 @@ const nextConfig: NextConfig = {
     ];
   },
 };
-
-export default nextConfig;

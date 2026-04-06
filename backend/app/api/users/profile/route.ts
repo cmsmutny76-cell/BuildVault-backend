@@ -1,73 +1,41 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getUserProfile, updateUserProfile } from '../../../../lib/services/userProfileService';
+import { NextResponse } from 'next/server';
+import { getPublicProfileByUserId, updatePublicProfile } from '../../../../lib/server/authStore';
+
+export const runtime = 'nodejs';
 
 /**
  * GET /api/users/profile?userId=123
  * Get user profile
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
-    const searchParams = request.nextUrl.searchParams;
+    const searchParams = new URL(request.url).searchParams;
     const userId = searchParams.get('userId');
 
     if (!userId) {
       return NextResponse.json(
-        { error: 'User ID is required' },
+        { success: false, error: 'User ID is required' },
         { status: 400 }
       );
     }
 
-    const profile = await getUserProfile(userId);
-    if (!profile) {
+    const userProfile = await getPublicProfileByUserId(userId);
+
+    if (!userProfile) {
       return NextResponse.json(
-        { success: false, error: 'User profile not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ success: true, profile });
-  } catch (error) {
-    console.error('Profile fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch profile' },
-      { status: 500 }
-    );
-  }
-}
-
-/**
- * PATCH /api/users/profile
- * Partially update user profile.
- */
-export async function PATCH(request: NextRequest) {
-  try {
-    const profileData = await request.json();
-    const userId = typeof profileData.userId === 'string' ? profileData.userId : '';
-
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'userId is required' },
-        { status: 400 }
-      );
-    }
-
-    const profile = await updateUserProfile(profileData as Record<string, unknown>);
-    if (!profile) {
-      return NextResponse.json(
-        { success: false, error: 'User profile not found' },
+        { success: false, error: 'User not found' },
         { status: 404 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      profile,
-      message: 'Profile updated successfully',
+      profile: userProfile,
     });
   } catch (error) {
-    console.error('Profile update error:', error);
+    console.error('Profile fetch error:', error);
     return NextResponse.json(
-      { error: 'Failed to update profile' },
+      { success: false, error: 'Failed to fetch profile' },
       { status: 500 }
     );
   }
@@ -75,8 +43,39 @@ export async function PATCH(request: NextRequest) {
 
 /**
  * PUT /api/users/profile
- * Compatibility alias for full update callers.
+ * Update user profile
  */
-export async function PUT(request: NextRequest) {
-  return PATCH(request);
+export async function PUT(request: Request) {
+  try {
+    const profileData = await request.json();
+
+    const updatedProfile = await updatePublicProfile(profileData);
+
+    if (!updatedProfile) {
+      return NextResponse.json(
+        { success: false, error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      profile: updatedProfile,
+      message: 'Profile updated successfully',
+    });
+  } catch (error) {
+    console.error('Profile update error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to update profile' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/users/profile
+ * Update user profile (alias for PUT, used by mobile clients)
+ */
+export async function PATCH(request: Request) {
+  return PUT(request);
 }

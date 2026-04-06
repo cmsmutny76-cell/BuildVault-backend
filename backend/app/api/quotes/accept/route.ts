@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { acceptEstimate } from '../../../../lib/services/estimateAcceptanceService';
+import { sendEstimateAcceptedEmail } from '../../../../lib/email';
 
 interface AcceptEstimateRequest {
   estimateId: string;
@@ -23,18 +23,55 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await acceptEstimate({ estimateId, userId, projectId });
+    // TODO: Fetch estimate from database
+    // TODO: Verify estimate belongs to project
+    // TODO: Check estimate is still valid
+    // TODO: Create project agreement
+    // TODO: Update project status to 'in-progress'
+    // TODO: Reject all other pending estimates for this project
 
-    if (!result.success) {
-      return NextResponse.json(
-        { success: false, error: result.error },
-        { status: result.status }
-      );
+    // Mock estimate data - Replace with actual database fetch
+    const mockEstimate = {
+      contractor: {
+        email: 'contractor@example.com',
+        name: 'ABC Construction',
+      },
+      homeowner: {
+        name: 'John Doe',
+      },
+      project: {
+        title: 'Kitchen Remodel',
+      },
+      total: 25000,
+    };
+
+    const agreement = {
+      id: 'agr_' + Date.now(),
+      estimateId,
+      projectId,
+      userId,
+      status: 'active',
+      acceptedAt: new Date().toISOString(),
+      startDate: new Date().toISOString(),
+      expectedCompletionDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+
+    // Send notification email to contractor
+    const emailResult = await sendEstimateAcceptedEmail(
+      mockEstimate.contractor.email,
+      mockEstimate.contractor.name,
+      mockEstimate.homeowner.name,
+      mockEstimate.project.title,
+      mockEstimate.total
+    );
+    
+    if (!emailResult.success) {
+      console.error('Failed to send acceptance email to contractor');
     }
 
     return NextResponse.json({
       success: true,
-      agreement: result.agreement,
+      agreement,
       message: 'Estimate accepted successfully',
     });
   } catch (error) {

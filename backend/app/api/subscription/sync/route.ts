@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { findUserById, updateUserById } from '../../../../lib/server/authStore';
 
 /**
  * POST /api/subscription/sync
@@ -22,22 +23,19 @@ export async function POST(request: NextRequest) {
 
     console.log(`Syncing subscription for user ${userId}:`, subscriptionData);
 
-    // TODO: Validate user exists
-    // const user = await db.users.findUnique({ where: { id: userId } });
-    // if (!user) {
-    //   return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    // }
+    const user = await findUserById(userId);
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
 
     if (subscriptionData.status === 'none') {
-      // User has no active subscription
-      // TODO: Update database
-      // await db.subscriptions.update({
-      //   where: { userId },
-      //   data: {
-      //     status: 'expired',
-      //     updatedAt: new Date(),
-      //   },
-      // });
+      await updateUserById(userId, {
+        subscription: {
+          status: 'expired',
+          plan: 'free',
+          price: 0,
+        },
+      });
       
       return NextResponse.json({
         success: true,
@@ -55,30 +53,16 @@ export async function POST(request: NextRequest) {
       store,
     } = subscriptionData;
 
-    // TODO: Upsert to database
-    // await db.subscriptions.upsert({
-    //   where: { userId },
-    //   create: {
-    //     userId,
-    //     productId,
-    //     status,
-    //     isTrial,
-    //     expiresAt: expiresAt ? new Date(expiresAt) : null,
-    //     willRenew,
-    //     store,
-    //     createdAt: new Date(),
-    //     updatedAt: new Date(),
-    //   },
-    //   update: {
-    //     productId,
-    //     status,
-    //     isTrial,
-    //     expiresAt: expiresAt ? new Date(expiresAt) : null,
-    //     willRenew,
-    //     store,
-    //     updatedAt: new Date(),
-    //   },
-    // });
+    const normalizedPlan = productId || user.subscription?.plan || 'contractor_pro';
+
+    await updateUserById(userId, {
+      subscription: {
+        status: isTrial ? 'trial' : status || 'active',
+        plan: normalizedPlan,
+        price: normalizedPlan.includes('99') ? 99.99 : normalizedPlan === 'free' ? 0 : 49.99,
+        trialEndsAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
+      },
+    });
 
     return NextResponse.json({
       success: true,

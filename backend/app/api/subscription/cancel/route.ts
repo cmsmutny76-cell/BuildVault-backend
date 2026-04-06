@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cancelContractorSubscription } from '../../../../lib/services/subscriptionService';
+import Stripe from 'stripe';
+import { findUserById, updateUserById } from '../../../../lib/server/authStore';
 
 /**
  * POST /api/subscription/cancel
@@ -16,16 +17,57 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await cancelContractorSubscription({ userId, subscriptionId });
-
-    if (!result.success) {
+    const user = await findUserById(userId);
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: result.error },
-        { status: result.status }
+        { error: 'User not found' },
+        { status: 404 }
       );
     }
 
-    return NextResponse.json(result);
+    const stripe = process.env.STRIPE_SECRET_KEY
+      ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-01-28.clover' })
+      : null;
+
+    if (stripe) {
+      try {
+        // Cancel at period end to honor the paid period
+        await stripe.subscriptions.update(subscriptionId, {
+          cancel_at_period_end: true,
+        });
+
+        await updateUserById(userId, {
+          subscription: {
+            status: 'cancelled',
+            plan: user.subscription?.plan || 'contractor_pro',
+            price: user.subscription?.price || 49.99,
+            trialEndsAt: user.subscription?.trialEndsAt,
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: 'Subscription will be cancelled at the end of the billing period',
+        });
+      } catch (stripeError: any) {
+        console.error('Stripe cancellation error:', stripeError);
+      }
+    }
+
+    await updateUserById(userId, {
+      subscription: {
+        status: 'cancelled',
+        plan: user.subscription?.plan || 'contractor_pro',
+        price: user.subscription?.price || 49.99,
+        trialEndsAt: user.subscription?.trialEndsAt,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Subscription cancelled',
+      note: 'Configure STRIPE_SECRET_KEY for real payment processing',
+    });
   } catch (error) {
     console.error('Subscription cancellation error:', error);
     return NextResponse.json(

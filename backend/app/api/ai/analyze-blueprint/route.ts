@@ -1,8 +1,75 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { fetchBuildingCodes } from '../../../../lib/services/complianceService';
+import { generateMaterialQuoteWithCatalog } from '../../../../lib/services/estimateService';
+import { saveProjectDocument, listProjectDocuments } from '../../../../lib/services/projectDocumentService';
+import { getProjectById } from '../../../../lib/services/projectService';
+import { recordMaterialSearchObservations } from '../../../../lib/services/materialCatalogService';
+import { estimateCodeHardwareQuantities } from '../../../../lib/services/hardwareQuantityService';
+import {
+  toTitleCase,
+  buildBuildingCodesReportText,
+  buildMaterialsQuoteReportText,
+  NormalizedMaterial,
+  mergeMaterials,
+  inferApplicableHardware,
+} from '../../../../lib/services/reportBuilderService';
 
-interface FormDataWithGet {
-  get(name: string): FormDataEntryValue | null;
+
+function buildBlueprintReportText(input: {
+  blueprintData: any;
+  materialQuote: any;
+  compliance?: any;
+  projectType?: string;
+  location?: { city?: string; state?: string; zipCode?: string } | null;
+  blueprintCount: number;
+}) {
+  const { blueprintData, materialQuote, compliance, projectType, location, blueprintCount } = input;
+  const lines: string[] = [];
+  lines.push('BLUEPRINT ANALYSIS REPORT');
+  lines.push(`Project Type: ${projectType ? toTitleCase(projectType) : 'General Project'}`);
+  lines.push(`Blueprint Files Analyzed: ${blueprintCount}`);
+  lines.push(`Location: ${location?.city || 'N/A'}, ${location?.state || 'N/A'} ${location?.zipCode || ''}`.trim());
+  lines.push(`Generated: ${new Date().toLocaleString()}`);
+  lines.push('');
+
+  const dimensions = blueprintData?.dimensions || {};
+  lines.push('Dimensions:');
+  const dimensionEntries = Object.entries(dimensions);
+  if (dimensionEntries.length === 0) {
+    lines.push('- No dimension data extracted.');
+  } else {
+    for (const [key, value] of dimensionEntries) {
+      lines.push(`- ${toTitleCase(key)}: ${String(value)}`);
+    }
+  }
+
+  lines.push('');
+  lines.push('Materials Identified:');
+  const materialGroups = Array.isArray(blueprintData?.materials) ? blueprintData.materials : [];
+  if (materialGroups.length === 0) {
+    lines.push('- No material groups identified.');
+  } else {
+    for (const group of materialGroups) {
+      const groupName = group?.category || group?.name || 'General';
+      lines.push(`- ${groupName}`);
+      const items = Array.isArray(group?.items) ? group.items : [];
+      for (const item of items) {
+        lines.push(`  • ${item?.name || 'Unknown'}: ${item?.quantity || 'N/A'} ${item?.unit || ''}`);
+      }
+    }
+  }
+
+  lines.push('');
+  lines.push(`Estimated Total Materials Cost: $${materialQuote?.totalCost || '0.00'}`);
+
+  if (compliance) {
+    lines.push('');
+    lines.push('Code Regulations Summary:');
+    lines.push(String(compliance?.disclaimer || 'Verify all code items with local jurisdiction.'));
+  }
+
+  return lines.join('\n');
 }
 
 /**
@@ -12,47 +79,53 @@ interface FormDataWithGet {
  */
 export async function POST(request: NextRequest) {
   try {
-    let blueprintUrl = '';
-    let location: { city?: string; county?: string; state?: string; zipCode?: string } | null = null;
+    const { blueprintUrl, blueprintUrls, location, projectId, projectType, userId, comparisonStores } = await request.json();
+    const openAiApiKey = process.env.OPENAI_API_KEY || '';
+    const allowMockFallback = process.env.ALLOW_MOCK_AI_FALLBACK === 'true';
 
-    const contentType = request.headers.get('content-type') || '';
-    if (contentType.includes('multipart/form-data')) {
-      const formData = (await request.formData()) as unknown as FormDataWithGet;
-      const file = formData.get('blueprint');
-      const locationRaw = formData.get('location');
+    const resolvedBlueprintUrls = Array.isArray(blueprintUrls)
+      ? blueprintUrls.filter((url: unknown): url is string => typeof url === 'string' && url.trim().length > 0)
+      : [];
 
-      if (typeof locationRaw === 'string' && locationRaw.trim()) {
-        try {
-          location = JSON.parse(locationRaw) as { city?: string; county?: string; state?: string; zipCode?: string };
-        } catch {
-          location = null;
-        }
-      }
-
-      if (file instanceof File) {
-        const bytes = await file.arrayBuffer();
-        const base64 = Buffer.from(bytes).toString('base64');
-        blueprintUrl = `data:${file.type || 'image/png'};base64,${base64}`;
-      }
-    } else {
-      const body = await request.json();
-      blueprintUrl = body.blueprintUrl || '';
-      location = body.location || null;
+    if (resolvedBlueprintUrls.length === 0 && typeof blueprintUrl === 'string' && blueprintUrl.trim()) {
+      resolvedBlueprintUrls.push(blueprintUrl.trim());
     }
 
-    if (!blueprintUrl) {
+    if (resolvedBlueprintUrls.length === 0) {
       return NextResponse.json(
-        { error: 'Blueprint URL is required' },
+        { error: 'At least one blueprint URL is required' },
         { status: 400 }
       );
     }
 
+    if (projectId) {
+      const project = await getProjectById(projectId);
+      if (!project) {
+        return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      }
+    }
+
+    if (!openAiApiKey && !allowMockFallback) {
+      return NextResponse.json(
+        {
+          error: 'OPENAI_API_KEY is not configured. Add it to backend/.env to enable real blueprint analysis.',
+        },
+        { status: 503 }
+      );
+    }
+
+    const historicalDocs = projectId ? await listProjectDocuments(projectId) : [];
+    const historicalContext = historicalDocs
+      .slice(0, 5)
+      .map((doc) => `${doc.type}: ${doc.title}`)
+      .join('; ');
+
     const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY || '',
+      apiKey: openAiApiKey,
     });
 
     // Create detailed prompt for blueprint analysis
-    const prompt = `Analyze this construction blueprint/architectural drawing in detail and provide:
+    const prompt = `Analyze this construction blueprint/architectural drawing set (${resolvedBlueprintUrls.length} file${resolvedBlueprintUrls.length === 1 ? '' : 's'}) in detail and provide:
 
 1. DIMENSIONS & MEASUREMENTS:
    - Overall dimensions (length, width, height)
@@ -69,6 +142,7 @@ export async function POST(request: NextRequest) {
    - Insulation (square footage/R-value)
    - Electrical boxes, outlets, switches (count)
    - Plumbing fixtures (if shown)
+  - Required hardware not explicitly listed in blueprint (anchors, hangers, connectors, fasteners, code-required outlets/protection)
    
 3. STRUCTURAL ELEMENTS:
    - Foundation requirements
@@ -85,7 +159,21 @@ export async function POST(request: NextRequest) {
    - What additional details would be needed
    - Assumptions made in the analysis
 
+6. HISTORICAL CONTEXT:
+  - Use this previous project context (if relevant) to improve consistency: ${historicalContext || 'None provided'}
+
 Provide the response in JSON format with clear categories and quantities.`;
+
+    const promptContent: Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string; detail: 'high' } }> = [
+      { type: 'text', text: prompt },
+      ...resolvedBlueprintUrls.map((url) => ({
+        type: 'image_url' as const,
+        image_url: {
+          url,
+          detail: 'high' as const,
+        },
+      })),
+    ];
 
     try {
       const response = await openai.chat.completions.create({
@@ -93,16 +181,7 @@ Provide the response in JSON format with clear categories and quantities.`;
         messages: [
           {
             role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              {
-                type: 'image_url',
-                image_url: { 
-                  url: blueprintUrl,
-                  detail: 'high' // Use high detail for blueprints
-                },
-              },
-            ],
+            content: promptContent,
           },
         ],
         max_tokens: 2000,
@@ -125,36 +204,134 @@ Provide the response in JSON format with clear categories and quantities.`;
         };
       }
 
-      // If location provided, fetch building codes
-      let buildingCodes = null;
-      if (location) {
-        const codesResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/building-codes/fetch`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ location }),
-          }
-        );
-        
-        if (codesResponse.ok) {
-          const codesData = await codesResponse.json();
-          buildingCodes = codesData.codes;
-        }
-      }
+      const codesResult = location?.state
+        ? await fetchBuildingCodes(location, projectType)
+        : null;
 
-      return NextResponse.json({
+      const materialItems = Array.isArray(blueprintData.materials)
+        ? blueprintData.materials.flatMap((group: any) =>
+            Array.isArray(group.items)
+              ? group.items.map((item: any) => ({
+                  name: item.name,
+                  quantity: String(item.quantity),
+                  unit: item.unit || 'unit',
+                }))
+              : []
+          )
+        : [];
+
+      const inferredHardware = inferApplicableHardware({
+        baseMaterials: materialItems,
+        state: location?.state,
+        projectType,
+        codes: codesResult?.codes,
+      });
+
+      const hardwareEstimation = await estimateCodeHardwareQuantities({
+        hardwareItems: inferredHardware,
+        baseMaterials: materialItems,
+        analysisData: blueprintData,
+        projectType,
+        location,
+        contextType: 'blueprint',
+      });
+      const estimatedHardware = hardwareEstimation.items;
+
+      const buildingCodesReportText = buildBuildingCodesReportText({
+        location,
+        projectType,
+        agencies: (codesResult as any)?.agencies || null,
+        codes: codesResult?.codes || null,
+        disclaimer: codesResult?.disclaimer,
+      });
+
+      const quoteMaterials = mergeMaterials(materialItems, estimatedHardware);
+
+      const materialQuote = await generateMaterialQuoteWithCatalog({
+        materials: quoteMaterials,
+        projectType,
+        zipCode: location?.zipCode,
+        city: location?.city,
+        state: location?.state,
+        comparisonStores: Array.isArray(comparisonStores) ? comparisonStores : [],
+      });
+
+      const payload = {
         success: true,
         blueprint: blueprintData,
-        buildingCodes,
+        buildingCodes: codesResult?.codes || null,
+        agencies: codesResult?.agencies || null,
+        complianceSummary: codesResult?.disclaimer || (location?.state ? 'Verify local code requirements with your jurisdiction.' : 'No state provided, so code lookup is limited.'),
+        buildingCodesReportText,
+        codeRequiredHardware: estimatedHardware,
+        hardwareQuantityMethod: hardwareEstimation.method,
+        materialQuote,
+        blueprintReportText: buildBlueprintReportText({
+          blueprintData,
+          materialQuote,
+          compliance: codesResult,
+          projectType,
+          location,
+          blueprintCount: resolvedBlueprintUrls.length,
+        }),
+        materialsQuoteReportText: buildMaterialsQuoteReportText(materialQuote, {
+          projectType,
+          location,
+        }),
+        blueprintSources: resolvedBlueprintUrls,
+        analyzedBlueprintCount: resolvedBlueprintUrls.length,
         model: 'gpt-4o',
         analysisType: 'blueprint',
+      };
+
+      await recordMaterialSearchObservations({
+        projectId,
+        source: 'ai-analyze-blueprint',
+        projectType,
+        location,
+        materials: materialQuote.materials,
       });
-    } catch (aiError: unknown) {
+
+      if (projectId) {
+        await saveProjectDocument({
+          projectId,
+          createdByUserId: userId,
+          type: 'blueprint-analysis-report',
+          title: `Blueprint Analysis Report (${resolvedBlueprintUrls.length} file${resolvedBlueprintUrls.length === 1 ? '' : 's'}) - ${projectType || 'General Project'}`,
+          tags: ['blueprint-analysis', projectType || 'general'],
+          data: {
+            reportText: payload.blueprintReportText,
+          },
+        });
+
+        await saveProjectDocument({
+          projectId,
+          createdByUserId: userId,
+          type: 'materials-quote-report',
+          title: `Blueprint Materials Quote - ${projectType || 'General Project'}`,
+          tags: ['materials-quote', 'blueprint', projectType || 'general'],
+          data: {
+            reportText: payload.materialsQuoteReportText,
+          },
+        });
+      }
+
+      return NextResponse.json(payload);
+    } catch (aiError: any) {
       console.error('OpenAI API error:', aiError);
+
+      if (!allowMockFallback) {
+        return NextResponse.json(
+          {
+            error: 'Blueprint analysis failed while calling OpenAI. Check OPENAI_API_KEY and API access.',
+            details: aiError?.message || 'Unknown OpenAI error',
+          },
+          { status: 502 }
+        );
+      }
       
       // Return mock blueprint data for testing
-      return NextResponse.json({
+      const mockResult = {
         success: true,
         blueprint: {
           dimensions: {
@@ -215,30 +392,116 @@ Provide the response in JSON format with clear categories and quantities.`;
             'Local building codes may require additional materials',
           ],
         },
-        buildingCodes: location ? {
-          location: location,
-          codes: [
-            {
-              category: 'Structural',
-              requirements: [
-                'All framing lumber must meet local grade standards',
-                'Hurricane ties required for roof joists',
-                'Foundation anchors every 6 feet',
-              ],
-            },
-            {
-              category: 'Electrical',
-              requirements: [
-                'GFCI outlets required within 6 feet of water sources',
-                'Arc-fault breakers required in living areas',
-                'Minimum one outlet per 12 feet of wall',
-              ],
-            },
-          ],
-        } : null,
+        blueprintSources: resolvedBlueprintUrls,
+        analyzedBlueprintCount: resolvedBlueprintUrls.length,
+      };
+
+      const codesResult = location?.state
+        ? await fetchBuildingCodes(location, projectType)
+        : null;
+
+      const materialItems = mockResult.blueprint.materials.flatMap((group: any) =>
+        group.items.map((item: any) => ({
+          name: item.name,
+          quantity: String(item.quantity),
+          unit: item.unit || 'unit',
+        }))
+      );
+
+      const inferredHardware = inferApplicableHardware({
+        baseMaterials: materialItems,
+        state: location?.state,
+        projectType,
+        codes: codesResult?.codes,
+      });
+
+      const hardwareEstimation = await estimateCodeHardwareQuantities({
+        hardwareItems: inferredHardware,
+        baseMaterials: materialItems,
+        analysisData: mockResult.blueprint,
+        projectType,
+        location,
+        contextType: 'blueprint',
+      });
+      const estimatedHardware = hardwareEstimation.items;
+
+      const buildingCodesReportText = buildBuildingCodesReportText({
+        location,
+        projectType,
+        agencies: (codesResult as any)?.agencies || null,
+        codes: codesResult?.codes || null,
+        disclaimer: codesResult?.disclaimer,
+      });
+
+      const quoteMaterials = mergeMaterials(materialItems, estimatedHardware);
+
+      const materialQuote = await generateMaterialQuoteWithCatalog({
+        materials: quoteMaterials,
+        projectType,
+        zipCode: location?.zipCode,
+        city: location?.city,
+        state: location?.state,
+        comparisonStores: Array.isArray(comparisonStores) ? comparisonStores : [],
+      });
+
+      const payload = {
+        ...mockResult,
+        buildingCodes: codesResult?.codes || null,
+        agencies: codesResult?.agencies || null,
+        complianceSummary: codesResult?.disclaimer || (location?.state ? 'Verify local code requirements with your jurisdiction.' : 'No state provided, so code lookup is limited.'),
+        buildingCodesReportText,
+        codeRequiredHardware: estimatedHardware,
+        hardwareQuantityMethod: hardwareEstimation.method,
+        materialQuote,
+        blueprintReportText: buildBlueprintReportText({
+          blueprintData: mockResult.blueprint,
+          materialQuote,
+          compliance: codesResult,
+          projectType,
+          location,
+          blueprintCount: resolvedBlueprintUrls.length,
+        }),
+        materialsQuoteReportText: buildMaterialsQuoteReportText(materialQuote, {
+          projectType,
+          location,
+        }),
         model: 'mock-data',
         note: 'Using mock data - configure OPENAI_API_KEY for real analysis',
+      };
+
+      await recordMaterialSearchObservations({
+        projectId,
+        source: 'ai-analyze-blueprint-mock',
+        projectType,
+        location,
+        materials: materialQuote.materials,
       });
+
+      if (projectId) {
+        await saveProjectDocument({
+          projectId,
+          createdByUserId: userId,
+          type: 'blueprint-analysis-report',
+          title: `Blueprint Analysis Report (${resolvedBlueprintUrls.length} file${resolvedBlueprintUrls.length === 1 ? '' : 's'}) - ${projectType || 'General Project'}`,
+          tags: ['blueprint-analysis', projectType || 'general'],
+          data: {
+            reportText: payload.blueprintReportText,
+          },
+        });
+
+        await saveProjectDocument({
+          projectId,
+          createdByUserId: userId,
+          type: 'materials-quote-report',
+          title: `Blueprint Materials Quote - ${projectType || 'General Project'}`,
+          tags: ['materials-quote', 'blueprint', projectType || 'general'],
+          data: {
+            reportText: payload.materialsQuoteReportText,
+          },
+        });
+      }
+
+      return NextResponse.json(payload);
     }
   } catch (error) {
     console.error('Blueprint analysis error:', error);
