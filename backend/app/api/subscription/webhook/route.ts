@@ -15,7 +15,7 @@ const PLAN_BY_KEY: Record<string, { plan: string; price: number }> = {
 function getStripeClient() {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) return null;
-  return new Stripe(key, { apiVersion: '2026-01-28.clover' });
+  return new Stripe(key, { apiVersion: '2026-02-25.clover' });
 }
 
 async function handleStripeCheckoutCompleted(stripe: Stripe, event: Stripe.Event) {

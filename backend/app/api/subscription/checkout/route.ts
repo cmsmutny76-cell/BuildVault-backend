@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const stripe = new Stripe(stripeSecret, { apiVersion: '2026-01-28.clover' });
+    const stripe = new Stripe(stripeSecret, { apiVersion: '2026-02-25.clover' });
     const appUrl = resolveAppUrl(request);
     const meta = PLAN_META[requestedPlan];
     const introEndsAt = new Date(Date.now() + INTRO_PERIOD_DAYS * 24 * 60 * 60 * 1000).toISOString();

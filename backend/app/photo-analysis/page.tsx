@@ -352,6 +352,7 @@ export default function PhotoAnalysisPage() {
           ) : (
             <ul className="space-y-2">
               {uploads.map((upload) => {
+                const selected = selectedImage === upload.photoUrl;
                 return (
                   <li key={upload.id}>
                     <div className={`rounded-md border px-3 py-2 transition ${selected ? 'border-blue-500 bg-blue-950/40' : 'border-slate-700 bg-slate-900/50'}`}>

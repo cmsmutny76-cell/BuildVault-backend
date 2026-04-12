@@ -21,7 +21,7 @@ function getStripeClient(): Stripe | null {
     return null;
   }
 
-  return new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-01-28.clover' });
+  return new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-02-25.clover' });
 }
 
 function calculateFutureDate(days: number): Date {
