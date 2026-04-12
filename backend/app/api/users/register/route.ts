@@ -12,9 +12,11 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-// In-memory rate limiter: configurable max registrations per IP per time window
-const registerAttempts = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_MAX = parsePositiveInt(process.env.REGISTER_RATE_LIMIT_MAX, 20);
+// In-memory rate limiter: IP-wide plus IP+email buckets.
+const registerAttemptsByIp = new Map<string, { count: number; resetAt: number }>();
+const registerAttemptsByIpAndEmail = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_MAX = parsePositiveInt(process.env.REGISTER_RATE_LIMIT_MAX, 200);
+const RATE_LIMIT_MAX_PER_EMAIL = parsePositiveInt(process.env.REGISTER_RATE_LIMIT_MAX_PER_EMAIL, 10);
 const RATE_LIMIT_WINDOW_MS = parsePositiveInt(process.env.REGISTER_RATE_LIMIT_WINDOW_MS, 60 * 60 * 1000);
 const EMAIL_SEND_TIMEOUT_MS = parsePositiveInt(process.env.EMAIL_SEND_TIMEOUT_MS, 8000);
 
@@ -26,16 +28,20 @@ function getRateLimitKey(request: NextRequest): string {
   );
 }
 
-function checkRateLimit(key: string): { allowed: boolean; retryAfterSeconds: number } {
+function checkRateLimit(
+  store: Map<string, { count: number; resetAt: number }>,
+  key: string,
+  maxAttempts: number
+): { allowed: boolean; retryAfterSeconds: number } {
   const now = Date.now();
-  const entry = registerAttempts.get(key);
+  const entry = store.get(key);
 
   if (!entry || now >= entry.resetAt) {
-    registerAttempts.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    store.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     return { allowed: true, retryAfterSeconds: 0 };
   }
 
-  if (entry.count >= RATE_LIMIT_MAX) {
+  if (entry.count >= maxAttempts) {
     return { allowed: false, retryAfterSeconds: Math.ceil((entry.resetAt - now) / 1000) };
   }
 
@@ -82,19 +88,6 @@ const SUBSCRIPTION_PLANS: Record<string, { plan: string; standardPrice: number }
  */
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
-    const ipKey = getRateLimitKey(request);
-    const { allowed, retryAfterSeconds } = checkRateLimit(ipKey);
-    if (!allowed) {
-      return NextResponse.json(
-        { error: 'Too many registration attempts. Please try again later.' },
-        {
-          status: 429,
-          headers: { 'Retry-After': String(retryAfterSeconds) },
-        }
-      );
-    }
-
     const userData = await request.json();
 
     const {
@@ -126,6 +119,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
+      );
+    }
+
+    // Rate limiting
+    const ipKey = getRateLimitKey(request);
+    const emailKey = `${ipKey}:${String(email).toLowerCase()}`;
+
+    const ipLimit = checkRateLimit(registerAttemptsByIp, ipKey, RATE_LIMIT_MAX);
+    if (!ipLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many registration attempts. Please try again later.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(ipLimit.retryAfterSeconds) },
+        }
+      );
+    }
+
+    const ipEmailLimit = checkRateLimit(registerAttemptsByIpAndEmail, emailKey, RATE_LIMIT_MAX_PER_EMAIL);
+    if (!ipEmailLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many registration attempts for this email. Please try again later.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(ipEmailLimit.retryAfterSeconds) },
+        }
       );
     }
 
