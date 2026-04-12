@@ -54,6 +54,13 @@ async function sendVerificationEmailWithTimeout(
   userId: string,
   verificationToken: string
 ) {
+  console.info('[register-email-audit] sendVerificationEmailWithTimeout invoked', {
+    email,
+    userId,
+    hasVerificationToken: Boolean(verificationToken),
+    timeoutMs: EMAIL_SEND_TIMEOUT_MS,
+  });
+
   const timeoutPromise = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error(`Verification email timed out after ${EMAIL_SEND_TIMEOUT_MS}ms`)), EMAIL_SEND_TIMEOUT_MS);
   });
@@ -246,14 +253,33 @@ export async function POST(request: NextRequest) {
 
     await createUser(user);
 
+    console.info('[register-email-audit] user created, triggering verification email dispatch', {
+      userId,
+      email: email.toLowerCase(),
+      verified: user.verified,
+    });
+
     // Do not block registration response on SMTP delivery latency.
     void sendVerificationEmailWithTimeout(email, userId, verificationToken)
       .then((emailResult) => {
+        console.info('[register-email-audit] verification email dispatch resolved', {
+          userId,
+          email: email.toLowerCase(),
+          success: Boolean(emailResult?.success),
+          messageId: emailResult && 'messageId' in emailResult ? emailResult.messageId : null,
+        });
         if (!emailResult.success) {
           console.error('Failed to send verification email, but user was created');
         }
       })
       .catch((error) => {
+        const err = error instanceof Error ? error : new Error(String(error));
+        console.error('[register-email-audit] verification email dispatch threw', {
+          userId,
+          email: email.toLowerCase(),
+          message: err.message,
+          stack: err.stack,
+        });
         console.error('Verification email send timed out/failed after registration:', error);
       });
 

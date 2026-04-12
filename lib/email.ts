@@ -51,12 +51,46 @@ export async function sendVerificationEmail(
   userId: string,
   verificationToken: string
 ) {
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = process.env.SMTP_PORT;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpFromEmail = process.env.SMTP_FROM_EMAIL;
+  const smtpFromName = process.env.SMTP_FROM_NAME;
+
+  const alternateFromEnvVars = {
+    SMTP_FROM: process.env.SMTP_FROM,
+    EMAIL_FROM: process.env.EMAIL_FROM,
+    MAIL_FROM: process.env.MAIL_FROM,
+    FROM_EMAIL: process.env.FROM_EMAIL,
+  };
+
+  const fromAddress = process.env.SMTP_USER || 'noreply@leadgenpro.com';
+  const fromName = 'LeadGen Pro';
+
+  console.info('[email-audit] sendVerificationEmail env audit', {
+    hasSMTP_HOST: Boolean(smtpHost),
+    hasSMTP_PORT: Boolean(smtpPort),
+    hasSMTP_USER: Boolean(smtpUser),
+    hasSMTP_PASS: Boolean(smtpPass),
+    hasSMTP_FROM_EMAIL: Boolean(smtpFromEmail),
+    hasSMTP_FROM_NAME: Boolean(smtpFromName),
+    alternateEnvPresence: {
+      SMTP_FROM: Boolean(alternateFromEnvVars.SMTP_FROM),
+      EMAIL_FROM: Boolean(alternateFromEnvVars.EMAIL_FROM),
+      MAIL_FROM: Boolean(alternateFromEnvVars.MAIL_FROM),
+      FROM_EMAIL: Boolean(alternateFromEnvVars.FROM_EMAIL),
+    },
+    resolvedFromAddressSource: process.env.SMTP_USER ? 'SMTP_USER' : 'default(noreply@leadgenpro.com)',
+    usesAlternateFromEnv: false,
+  });
+
   const verificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}&userId=${userId}`;
 
   const mailOptions = {
     from: {
-      name: 'LeadGen Pro',
-      address: process.env.SMTP_USER || 'noreply@leadgenpro.com',
+      name: fromName,
+      address: fromAddress,
     },
     to: email,
     subject: 'Verify Your Email - LeadGen Pro',
@@ -144,10 +178,32 @@ export async function sendVerificationEmail(
   };
 
   try {
+    console.info('[email-audit] about to call transporter.sendMail for verification email', {
+      to: mailOptions.to,
+      from: mailOptions.from,
+      subject: mailOptions.subject,
+      userId,
+    });
+
     const info = await transporter.sendMail(mailOptions);
+    console.info('[email-audit] transporter.sendMail resolved for verification email', {
+      to: mailOptions.to,
+      from: mailOptions.from,
+      messageId: info.messageId,
+      userId,
+    });
     console.log('Verification email sent:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error('[email-audit] transporter.sendMail threw for verification email', {
+      to: mailOptions.to,
+      from: mailOptions.from,
+      userId,
+      message: err.message,
+      stack: err.stack,
+      name: err.name,
+    });
     console.error('Failed to send verification email:', error);
     return { success: false, error };
   }
