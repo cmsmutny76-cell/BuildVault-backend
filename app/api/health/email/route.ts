@@ -44,12 +44,18 @@ export async function GET(request: NextRequest) {
     let verified: boolean | null = null;
     let verifyError: string | null = null;
     if (shouldVerify && configured) {
-      const result = await Promise.race<{ ok: boolean; error?: string }>([
-        verifyEmailConnection(),
-        new Promise<{ ok: boolean; error?: string }>((resolve) => {
-          setTimeout(() => resolve({ ok: false, error: 'timeout' }), verifyTimeoutMs);
-        }),
-      ]);
+      const verifyPromise = verifyEmailConnection().then((raw) => {
+        if (typeof raw === 'boolean') {
+          return { ok: raw, error: undefined as string | undefined };
+        }
+        return raw;
+      });
+
+      const timeoutPromise = new Promise<{ ok: boolean; error?: string }>((resolve) => {
+        setTimeout(() => resolve({ ok: false, error: 'timeout' }), verifyTimeoutMs);
+      });
+
+      const result = await Promise.race([verifyPromise, timeoutPromise]);
       verified = result.ok;
       verifyError = result.error ?? null;
     }
