@@ -28,7 +28,7 @@ export function isEmailEnabled(): boolean {
 }
 
 // Verify connection configuration
-export async function verifyEmailConnection(): Promise<{ ok: boolean; error?: string }> {
+export async function verifyEmailConnection() {
   const verifyTimeoutMs = parseEnvInt(process.env.SMTP_VERIFY_TIMEOUT_MS, 10000);
   try {
     await Promise.race([
@@ -38,11 +38,10 @@ export async function verifyEmailConnection(): Promise<{ ok: boolean; error?: st
       }),
     ]);
     console.log('Email server is ready to send messages');
-    return { ok: true };
+    return true;
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error('Email server connection failed:', msg);
-    return { ok: false, error: msg };
+    console.error('Email server connection failed:', error);
+    return false;
   }
 }
 

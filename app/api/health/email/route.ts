@@ -42,22 +42,13 @@ export async function GET(request: NextRequest) {
     const configured = isEmailEnabled();
 
     let verified: boolean | null = null;
-    let verifyError: string | null = null;
     if (shouldVerify && configured) {
-      const verifyPromise = verifyEmailConnection().then((raw) => {
-        if (typeof raw === 'boolean') {
-          return { ok: raw, error: undefined as string | undefined };
-        }
-        return raw;
-      });
-
-      const timeoutPromise = new Promise<{ ok: boolean; error?: string }>((resolve) => {
-        setTimeout(() => resolve({ ok: false, error: 'timeout' }), verifyTimeoutMs);
-      });
-
-      const result = await Promise.race([verifyPromise, timeoutPromise]);
-      verified = result.ok;
-      verifyError = result.error ?? null;
+      verified = await Promise.race<boolean>([
+        verifyEmailConnection(),
+        new Promise<boolean>((resolve) => {
+          setTimeout(() => resolve(false), verifyTimeoutMs);
+        }),
+      ]);
     }
 
     const statusCode = shouldVerify
@@ -74,7 +65,6 @@ export async function GET(request: NextRequest) {
         service: 'email',
         configured,
         verified,
-        verifyError,
         provider: smtpHost || null,
         port: smtpPort || null,
         user: maskEmail(smtpUser),
