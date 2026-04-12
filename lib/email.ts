@@ -1,16 +1,9 @@
 import nodemailer from 'nodemailer';
 
-export function isEmailEnabled(): boolean {
-  const value = (process.env.EMAIL_ENABLED || '').toLowerCase();
-  if (value === 'true') {
-    return true;
-  }
-  if (value === 'false') {
-    return false;
-  }
-
-  // Safe default: keep email transport off in development unless explicitly enabled.
-  return process.env.NODE_ENV !== 'development';
+function parseEnvInt(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 // Email configuration
@@ -18,6 +11,9 @@ const EMAIL_CONFIG = {
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: parseInt(process.env.SMTP_PORT || '587'),
   secure: false, // true for 465, false for other ports
+  connectionTimeout: parseEnvInt(process.env.SMTP_CONNECTION_TIMEOUT_MS, 10000),
+  greetingTimeout: parseEnvInt(process.env.SMTP_GREETING_TIMEOUT_MS, 10000),
+  socketTimeout: parseEnvInt(process.env.SMTP_SOCKET_TIMEOUT_MS, 15000),
   auth: {
     user: process.env.SMTP_USER || 'your-email@gmail.com',
     pass: process.env.SMTP_PASS || 'your-app-password',
@@ -27,31 +23,26 @@ const EMAIL_CONFIG = {
 // Create reusable transporter
 export const transporter = nodemailer.createTransport(EMAIL_CONFIG);
 
-async function guardedSendMail(mailOptions: nodemailer.SendMailOptions, context: string) {
-  if (!isEmailEnabled()) {
-    console.log(`[email] Skipped ${context} because EMAIL_ENABLED is not true.`);
-    return {
-      messageId: 'email-disabled',
-    } as nodemailer.SentMessageInfo;
-  }
-
-  return transporter.sendMail(mailOptions);
+export function isEmailEnabled(): boolean {
+  return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
 // Verify connection configuration
-export async function verifyEmailConnection() {
-  if (!isEmailEnabled()) {
-    console.log('[email] Transport disabled in current environment.');
-    return true;
-  }
-
+export async function verifyEmailConnection(): Promise<{ ok: boolean; error?: string }> {
+  const verifyTimeoutMs = parseEnvInt(process.env.SMTP_VERIFY_TIMEOUT_MS, 10000);
   try {
-    await transporter.verify();
+    await Promise.race([
+      transporter.verify(),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`SMTP verify timed out after ${verifyTimeoutMs}ms`)), verifyTimeoutMs);
+      }),
+    ]);
     console.log('Email server is ready to send messages');
-    return true;
+    return { ok: true };
   } catch (error) {
-    console.error('Email server connection failed:', error);
-    return false;
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('Email server connection failed:', msg);
+    return { ok: false, error: msg };
   }
 }
 
@@ -154,7 +145,7 @@ export async function sendVerificationEmail(
   };
 
   try {
-    const info = await guardedSendMail(mailOptions, 'verification email');
+    const info = await transporter.sendMail(mailOptions);
     console.log('Verification email sent:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
@@ -258,7 +249,7 @@ export async function sendPasswordResetEmail(
   };
 
   try {
-    const info = await guardedSendMail(mailOptions, 'password reset email');
+    const info = await transporter.sendMail(mailOptions);
     console.log('Password reset email sent:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
@@ -372,7 +363,7 @@ export async function sendEstimateNotificationEmail(
   };
 
   try {
-    const info = await guardedSendMail(mailOptions, 'estimate notification email');
+    const info = await transporter.sendMail(mailOptions);
     console.log('Estimate notification sent:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
@@ -481,11 +472,95 @@ export async function sendEstimateAcceptedEmail(
   };
 
   try {
-    const info = await guardedSendMail(mailOptions, 'estimate accepted email');
+    const info = await transporter.sendMail(mailOptions);
     console.log('Estimate accepted notification sent:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error('Failed to send estimate accepted notification:', error);
+    return { success: false, error };
+  }
+}
+
+// Send estimate rejected notification to contractor
+export async function sendEstimateRejectedEmail(
+  contractorEmail: string,
+  contractorName: string,
+  homeownerName: string,
+  projectTitle: string,
+  estimateTotal: number
+) {
+  const mailOptions = {
+    from: {
+      name: 'LeadGen Pro',
+      address: process.env.SMTP_USER || 'noreply@leadgenpro.com',
+    },
+    to: contractorEmail,
+    subject: `Estimate Not Accepted: ${projectTitle}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Estimate Update</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+          <table cellpadding="0" cellspacing="0" width="100%" style="background-color: #f4f4f4; padding: 20px;">
+            <tr>
+              <td align="center">
+                <table cellpadding="0" cellspacing="0" width="600" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 40px 20px; text-align: center;">
+                      <h1 style="color: #ffffff; margin: 0; font-size: 32px;">Estimate Update</h1>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 40px 30px;">
+                      <p style="color: #666666; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
+                        Hi ${contractorName},
+                      </p>
+                      <p style="color: #666666; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
+                        ${homeownerName} has chosen not to proceed with your estimate for "${projectTitle}".
+                      </p>
+                      <table cellpadding="0" cellspacing="0" width="100%" style="background-color: #fffbeb; border-radius: 6px; padding: 20px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+                        <tr>
+                          <td>
+                            <p style="color: #666666; font-size: 14px; margin: 0 0 10px;"><strong>Project:</strong> ${projectTitle}</p>
+                            <p style="color: #666666; font-size: 14px; margin: 0;"><strong>Estimate Total:</strong> $${estimateTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                          </td>
+                        </tr>
+                      </table>
+                      <p style="color: #666666; font-size: 14px; line-height: 1.7; margin: 20px 0 0;">
+                        Keep submitting quality proposals to improve your win rate over time.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+      </html>
+    `,
+    text: `
+      Estimate Not Accepted - LeadGen Pro
+
+      Hi ${contractorName},
+
+      ${homeownerName} has chosen not to proceed with your estimate for "${projectTitle}".
+
+      Estimate Total: $${estimateTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+
+      Keep submitting quality proposals to improve your win rate over time.
+    `,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Estimate rejected notification sent:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('Failed to send estimate rejected notification:', error);
     return { success: false, error };
   }
 }
@@ -585,7 +660,7 @@ export async function sendNewMessageEmail(
   };
 
   try {
-    const info = await guardedSendMail(mailOptions, 'new message notification email');
+    const info = await transporter.sendMail(mailOptions);
     console.log('New message notification sent:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
@@ -594,33 +669,18 @@ export async function sendNewMessageEmail(
   }
 }
 
-// Send contractor match results to homeowner
 export async function sendMatchResultsEmail(
   recipientEmail: string,
   recipientName: string,
   projectType: string,
-  totalMatches: number,
-  topMatches: Array<{ name: string; matchScore: number; rating: number }>
+  matchCount: number,
+  matches: Array<{ name: string; matchScore: number; rating: number }>
 ) {
-  const viewUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/contractors`;
+  if (!isEmailEnabled()) {
+    return { success: false, error: 'email-disabled' };
+  }
 
-  const topMatchesHtml = topMatches
-    .slice(0, 3)
-    .map(
-      (match, index) => `
-        <tr>
-          <td style="padding: 10px; border-bottom: 1px solid #e9ecef;">#${index + 1} ${match.name}</td>
-          <td style="padding: 10px; border-bottom: 1px solid #e9ecef; text-align: right;">${match.matchScore}%</td>
-          <td style="padding: 10px; border-bottom: 1px solid #e9ecef; text-align: right;">${match.rating.toFixed(1)} / 5</td>
-        </tr>
-      `
-    )
-    .join('');
-
-  const topMatchesText = topMatches
-    .slice(0, 3)
-    .map((match, index) => `${index + 1}. ${match.name} - ${match.matchScore}% match - ${match.rating.toFixed(1)}/5 rating`)
-    .join('\n');
+  const topMatches = matches.slice(0, 3);
 
   const mailOptions = {
     from: {
@@ -628,71 +688,25 @@ export async function sendMatchResultsEmail(
       address: process.env.SMTP_USER || 'noreply@leadgenpro.com',
     },
     to: recipientEmail,
-    subject: `Your Contractor Matches Are Ready (${totalMatches} found)` ,
+    subject: `Your contractor matches for ${projectType}`,
     html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Contractor Matches</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
-          <table cellpadding="0" cellspacing="0" width="100%" style="background-color: #f4f4f4; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table cellpadding="0" cellspacing="0" width="600" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #0f766e 0%, #155e75 100%); padding: 40px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 30px;">Top Contractor Matches</h1>
-                    </td>
-                  </tr>
-
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="margin: 0 0 16px; color: #334155;">Hi ${recipientName},</p>
-                      <p style="margin: 0 0 16px; color: #334155;">
-                        We found <strong>${totalMatches}</strong> contractors for your <strong>${projectType}</strong> project.
-                      </p>
-
-                      <table cellpadding="0" cellspacing="0" width="100%" style="border: 1px solid #e9ecef; border-radius: 6px;">
-                        <tr style="background-color: #f8fafc;">
-                          <th style="padding: 10px; text-align: left;">Contractor</th>
-                          <th style="padding: 10px; text-align: right;">Match</th>
-                          <th style="padding: 10px; text-align: right;">Rating</th>
-                        </tr>
-                        ${topMatchesHtml}
-                      </table>
-
-                      <p style="margin: 24px 0 0; text-align: center;">
-                        <a href="${viewUrl}" style="display: inline-block; background-color: #0f766e; color: #ffffff; text-decoration: none; padding: 12px 22px; border-radius: 6px; font-weight: bold;">
-                          View All Matches
-                        </a>
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+      <h2>Contractor matches are ready</h2>
+      <p>Hi ${recipientName},</p>
+      <p>We found ${matchCount} contractor matches for your ${projectType} project.</p>
+      <ul>
+        ${topMatches
+          .map(
+            (match) =>
+              `<li><strong>${match.name}</strong> - ${match.matchScore}% match, ${match.rating.toFixed(1)} rating</li>`
+          )
+          .join('')}
+      </ul>
     `,
-    text: `
-Hi ${recipientName},
-
-We found ${totalMatches} contractors for your ${projectType} project.
-
-Top matches:
-${topMatchesText}
-
-View all matches: ${viewUrl}
-    `,
+    text: `Hi ${recipientName}, we found ${matchCount} contractor matches for your ${projectType} project.`,
   };
 
   try {
-    const info = await guardedSendMail(mailOptions, 'contractor match results email');
-    console.log('Match results email sent:', info.messageId);
+    const info = await transporter.sendMail(mailOptions);
     return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error('Failed to send match results email:', error);
@@ -700,113 +714,7 @@ View all matches: ${viewUrl}
   }
 }
 
-export async function sendEstimateRejectedEmail(
-  contractorEmail: string,
-  contractorName: string,
-  homeownerName: string,
-  projectTitle: string,
-  estimateTotal: number
-) {
-  const mailOptions = {
-    from: {
-      name: 'LeadGen Pro',
-      address: process.env.SMTP_USER || 'noreply@leadgenpro.com',
-    },
-    to: contractorEmail,
-    subject: `Estimate Declined: ${projectTitle}`,
-    html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Estimate Declined</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
-          <table cellpadding="0" cellspacing="0" width="100%" style="background-color: #f4f4f4; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table cellpadding="0" cellspacing="0" width="600" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 40px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 32px;">Estimate Update</h1>
-                    </td>
-                  </tr>
-                  
-                  <tr>
-                    <td style="padding: 40px 30px;">
-                      <h2 style="color: #333333; margin: 0 0 20px; font-size: 24px;">Your Estimate Was Declined</h2>
-                      <p style="color: #666666; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
-                        Hi ${contractorName},
-                      </p>
-                      <p style="color: #666666; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
-                        <strong>${homeownerName}</strong> has declined your estimate for "${projectTitle}".
-                      </p>
-                      
-                      <table cellpadding="0" cellspacing="0" width="100%" style="background-color: #fef2f2; border-radius: 6px; padding: 20px; margin: 20px 0; border-left: 4px solid #ef4444;">
-                        <tr>
-                          <td>
-                            <p style="color: #666666; font-size: 14px; margin: 0 0 10px;"><strong>Homeowner:</strong> ${homeownerName}</p>
-                            <p style="color: #666666; font-size: 14px; margin: 0 0 10px;"><strong>Project:</strong> ${projectTitle}</p>
-                            <p style="color: #666666; font-size: 14px; margin: 10px 0 0;">
-                              <strong>Estimate Amount:</strong> $${estimateTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </p>
-                          </td>
-                        </tr>
-                      </table>
-                      
-                      <p style="color: #666666; font-size: 16px; line-height: 1.6; margin: 20px 0;">
-                        <strong>What Now?</strong>
-                      </p>
-                      <ul style="color: #666666; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px;">
-                        <li>You may reach out to the homeowner to discuss alternative options</li>
-                        <li>Continue to look for other projects in your service area</li>
-                        <li>Consider submitting revised estimates for future projects</li>
-                      </ul>
-                    </td>
-                  </tr>
-                  
-                  <tr>
-                    <td style="background-color: #f8f9fa; padding: 20px 30px; border-top: 1px solid #e9ecef;">
-                      <p style="color: #999999; font-size: 12px; line-height: 1.6; margin: 0; text-align: center;">
-                        This notification was sent to ${contractorEmail}
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
-    `,
-    text: `
-      Estimate Declined - LeadGen Pro
-      
-      Hi ${contractorName},
-      
-      ${homeownerName} has declined your estimate for "${projectTitle}".
-      
-      Estimate Amount: $${estimateTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-      
-      What Now?
-      - You may reach out to the homeowner to discuss alternative options
-      - Continue to look for other projects in your service area
-      - Consider submitting revised estimates for future projects
-    `,
-  };
-
-  try {
-    const info = await guardedSendMail(mailOptions, 'estimate rejected email');
-    console.log('Estimate rejected notification sent:', info.messageId);
-    return { success: true, messageId: info.messageId };
-  } catch (error) {
-    console.error('Failed to send estimate rejected notification:', error);
-    return { success: false, error };
-  }
-}
-
-const emailService = {
+export default {
   verifyEmailConnection,
   sendVerificationEmail,
   sendPasswordResetEmail,
@@ -816,5 +724,3 @@ const emailService = {
   sendNewMessageEmail,
   sendMatchResultsEmail,
 };
-
-export default emailService;
