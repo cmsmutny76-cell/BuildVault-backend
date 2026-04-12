@@ -410,6 +410,13 @@ function buildPublicProfile(user: StoredUser) {
 // PostgreSQL implementations (used when DATABASE_URL is set)
 // ============================================================
 
+function toIsoOrNow(value: unknown): string {
+  if (!value) return new Date().toISOString();
+  const parsed = new Date(value as string);
+  if (Number.isNaN(parsed.getTime())) return new Date().toISOString();
+  return parsed.toISOString();
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function rowToStoredUser(row: Record<string, any>): StoredUser {
   return {
@@ -423,7 +430,7 @@ function rowToStoredUser(row: Record<string, any>): StoredUser {
     city: row.city ?? undefined,
     state: row.state ?? undefined,
     zipCode: row.zip_code ?? undefined,
-    userType: row.user_type,
+    userType: row.user_type || 'homeowner',
     businessName: row.business_name ?? undefined,
     licenseNumber: row.license_number ?? undefined,
     serviceAreas: row.service_areas ?? undefined,
@@ -439,10 +446,10 @@ function rowToStoredUser(row: Record<string, any>): StoredUser {
     minimumOrderQuantities: row.minimum_order_quantities ?? undefined,
     fabricationCapabilities: row.fabrication_capabilities ?? undefined,
     subscription: row.subscription ?? undefined,
-    verified: row.verified,
-    verifiedAt: row.verified_at ? new Date(row.verified_at).toISOString() : undefined,
-    createdAt: new Date(row.created_at).toISOString(),
-    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined,
+    verified: typeof row.verified === 'boolean' ? row.verified : false,
+    verifiedAt: row.verified_at ? toIsoOrNow(row.verified_at) : undefined,
+    createdAt: toIsoOrNow(row.created_at),
+    updatedAt: row.updated_at ? toIsoOrNow(row.updated_at) : undefined,
   };
 }
 
@@ -511,7 +518,10 @@ async function dbCreateUser(user: StoredUser): Promise<StoredUser> {
     ]
   );
 
-  return (await dbFindUserByEmail(user.email))!;
+  return {
+    ...user,
+    email: user.email.toLowerCase(),
+  };
 }
 
 async function dbUpdateUserByEmail(email: string, updates: Partial<StoredUser>): Promise<StoredUser | null> {
