@@ -1,10 +1,19 @@
 import nodemailer from 'nodemailer';
 
+function parseEnvInt(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 // Email configuration
 const EMAIL_CONFIG = {
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: parseInt(process.env.SMTP_PORT || '587'),
   secure: false, // true for 465, false for other ports
+  connectionTimeout: parseEnvInt(process.env.SMTP_CONNECTION_TIMEOUT_MS, 10000),
+  greetingTimeout: parseEnvInt(process.env.SMTP_GREETING_TIMEOUT_MS, 10000),
+  socketTimeout: parseEnvInt(process.env.SMTP_SOCKET_TIMEOUT_MS, 15000),
   auth: {
     user: process.env.SMTP_USER || 'your-email@gmail.com',
     pass: process.env.SMTP_PASS || 'your-app-password',
@@ -20,8 +29,14 @@ export function isEmailEnabled(): boolean {
 
 // Verify connection configuration
 export async function verifyEmailConnection() {
+  const verifyTimeoutMs = parseEnvInt(process.env.SMTP_VERIFY_TIMEOUT_MS, 10000);
   try {
-    await transporter.verify();
+    await Promise.race([
+      transporter.verify(),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`SMTP verify timed out after ${verifyTimeoutMs}ms`)), verifyTimeoutMs);
+      }),
+    ]);
     console.log('Email server is ready to send messages');
     return true;
   } catch (error) {

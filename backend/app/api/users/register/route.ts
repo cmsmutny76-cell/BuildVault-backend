@@ -6,10 +6,17 @@ import { createUser, createVerificationToken, findUserByEmail, generateToken, ty
 
 export const runtime = 'nodejs';
 
-// In-memory rate limiter: max 5 registrations per IP per hour
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+// In-memory rate limiter: configurable max registrations per IP per time window
 const registerAttempts = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_MAX = 5;
-const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+const RATE_LIMIT_MAX = parsePositiveInt(process.env.REGISTER_RATE_LIMIT_MAX, 20);
+const RATE_LIMIT_WINDOW_MS = parsePositiveInt(process.env.REGISTER_RATE_LIMIT_WINDOW_MS, 60 * 60 * 1000);
+const EMAIL_SEND_TIMEOUT_MS = parsePositiveInt(process.env.EMAIL_SEND_TIMEOUT_MS, 8000);
 
 function getRateLimitKey(request: NextRequest): string {
   return (
@@ -34,6 +41,21 @@ function checkRateLimit(key: string): { allowed: boolean; retryAfterSeconds: num
 
   entry.count += 1;
   return { allowed: true, retryAfterSeconds: 0 };
+}
+
+async function sendVerificationEmailWithTimeout(
+  email: string,
+  userId: string,
+  verificationToken: string
+) {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error(`Verification email timed out after ${EMAIL_SEND_TIMEOUT_MS}ms`)), EMAIL_SEND_TIMEOUT_MS);
+  });
+
+  return Promise.race([
+    sendVerificationEmail(email, userId, verificationToken),
+    timeoutPromise,
+  ]);
 }
 
 const INTRO_MONTHLY_PRICE = 10;
@@ -205,12 +227,16 @@ export async function POST(request: NextRequest) {
 
     await createUser(user);
 
-    // Send verification email
-    const emailResult = await sendVerificationEmail(email, userId, verificationToken);
-    
-    if (!emailResult.success) {
-      console.error('Failed to send verification email, but user was created');
-    }
+    // Do not block registration response on SMTP delivery latency.
+    void sendVerificationEmailWithTimeout(email, userId, verificationToken)
+      .then((emailResult) => {
+        if (!emailResult.success) {
+          console.error('Failed to send verification email, but user was created');
+        }
+      })
+      .catch((error) => {
+        console.error('Verification email send timed out/failed after registration:', error);
+      });
 
     // Generate JWT token (but user still needs to verify email to login)
     const token = jwt.sign(
