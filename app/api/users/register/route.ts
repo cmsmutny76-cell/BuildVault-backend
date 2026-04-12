@@ -2,14 +2,85 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendVerificationEmail } from '../../../../lib/email';
-import type { SubscriptionInfo } from '../../../../lib/authStore';
-import {
-  authUserExists,
-  createAuthUser,
-  createVerificationToken,
-} from '../../../../lib/services/authService';
+import { createUser, createVerificationToken, findUserByEmail, generateToken, type StoredUser } from '../../../../lib/server/authStore';
+
+export const runtime = 'nodejs';
+
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+// In-memory rate limiter: IP-wide plus IP+email buckets.
+const registerAttemptsByIp = new Map<string, { count: number; resetAt: number }>();
+const registerAttemptsByIpAndEmail = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_MAX = parsePositiveInt(process.env.REGISTER_RATE_LIMIT_MAX, 200);
+const RATE_LIMIT_MAX_PER_EMAIL = parsePositiveInt(process.env.REGISTER_RATE_LIMIT_MAX_PER_EMAIL, 10);
+const RATE_LIMIT_WINDOW_MS = parsePositiveInt(process.env.REGISTER_RATE_LIMIT_WINDOW_MS, 60 * 60 * 1000);
+const EMAIL_SEND_TIMEOUT_MS = parsePositiveInt(process.env.EMAIL_SEND_TIMEOUT_MS, 8000);
+
+function getRateLimitKey(request: NextRequest): string {
+  return (
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    'unknown'
+  );
+}
+
+function checkRateLimit(
+  store: Map<string, { count: number; resetAt: number }>,
+  key: string,
+  maxAttempts: number
+): { allowed: boolean; retryAfterSeconds: number } {
+  const now = Date.now();
+  const entry = store.get(key);
+
+  if (!entry || now >= entry.resetAt) {
+    store.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true, retryAfterSeconds: 0 };
+  }
+
+  if (entry.count >= maxAttempts) {
+    return { allowed: false, retryAfterSeconds: Math.ceil((entry.resetAt - now) / 1000) };
+  }
+
+  entry.count += 1;
+  return { allowed: true, retryAfterSeconds: 0 };
+}
+
+async function sendVerificationEmailWithTimeout(
+  email: string,
+  userId: string,
+  verificationToken: string
+) {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error(`Verification email timed out after ${EMAIL_SEND_TIMEOUT_MS}ms`)), EMAIL_SEND_TIMEOUT_MS);
+  });
+
+  return Promise.race([
+    sendVerificationEmail(email, userId, verificationToken),
+    timeoutPromise,
+  ]);
+}
+
+const INTRO_MONTHLY_PRICE = 10;
+const INTRO_PERIOD_DAYS = 90;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+const SUBSCRIPTION_PLANS: Record<string, { plan: string; standardPrice: number } | null> = {
+  homeowner: null,
+  employment_seeker: null,
+  contractor: { plan: 'contractor_pro', standardPrice: 49.99 },
+  supplier: null,
+  commercial_builder: { plan: 'commercial_pro', standardPrice: 99.99 },
+  multi_family_owner: { plan: 'commercial_pro', standardPrice: 99.99 },
+  apartment_owner: { plan: 'commercial_pro', standardPrice: 99.99 },
+  developer: { plan: 'commercial_pro', standardPrice: 99.99 },
+  landscaper: { plan: 'landscaper_pro', standardPrice: 49.99 },
+  school: { plan: 'school_pro', standardPrice: 49.99 },
+};
 
 /**
  * POST /api/users/register
@@ -35,6 +106,12 @@ export async function POST(request: NextRequest) {
       licenseNumber,
       serviceAreas,
       specialties,
+      supplierCategories,
+      supplierAudience,
+      supplierVisibilityRestricted,
+      supplierDescription,
+      supplierSpecialServices,
+      customOrderMaterials,
     } = userData;
 
     // Validate required fields
@@ -45,10 +122,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate password length
-    if (password.length < 6) {
+    // Rate limiting
+    const ipKey = getRateLimitKey(request);
+    const emailKey = `${ipKey}:${String(email).toLowerCase()}`;
+
+    const ipLimit = checkRateLimit(registerAttemptsByIp, ipKey, RATE_LIMIT_MAX);
+    if (!ipLimit.allowed) {
       return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
+        { error: 'Too many registration attempts. Please try again later.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(ipLimit.retryAfterSeconds) },
+        }
+      );
+    }
+
+    const ipEmailLimit = checkRateLimit(registerAttemptsByIpAndEmail, emailKey, RATE_LIMIT_MAX_PER_EMAIL);
+    if (!ipEmailLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many registration attempts for this email. Please try again later.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(ipEmailLimit.retryAfterSeconds) },
+        }
+      );
+    }
+
+    // Validate password length
+    if (password.length < 8) {
+      return NextResponse.json(
+        { error: 'Password must be at least 8 characters' },
         { status: 400 }
       );
     }
@@ -63,7 +166,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already exists
-    if (await authUserExists(email)) {
+    if (await findUserByEmail(email)) {
       return NextResponse.json(
         { error: 'User with this email already exists' },
         { status: 409 }
@@ -73,53 +176,86 @@ export async function POST(request: NextRequest) {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
+    const normalizedUserType = userType || 'homeowner';
+    const subscriptionPlan = SUBSCRIPTION_PLANS[normalizedUserType];
+
+    if (!(normalizedUserType in SUBSCRIPTION_PLANS)) {
+      return NextResponse.json(
+        { error: 'Invalid user type' },
+        { status: 400 }
+      );
+    }
+
     // Create user
     const userId = 'user_' + Date.now();
     
-    // For contractors, create trial subscription
-    let subscription: SubscriptionInfo | null = null;
-    if (userType === 'contractor') {
-      const trialEndDate = new Date();
-      trialEndDate.setDate(trialEndDate.getDate() + 30); // 30-day trial
+    // Create introductory discounted subscription for paid account types
+    let subscription = null;
+    if (subscriptionPlan) {
+      const discountEndDate = new Date();
+      discountEndDate.setDate(discountEndDate.getDate() + INTRO_PERIOD_DAYS);
 
       subscription = {
-        status: 'trial',
-        trialEndsAt: trialEndDate.toISOString(),
-        plan: 'contractor_pro',
-        price: 49.99,
+        status: 'active',
+        discountEndsAt: discountEndDate.toISOString(),
+        plan: subscriptionPlan.plan,
+        price: INTRO_MONTHLY_PRICE,
+        standardPrice: subscriptionPlan.standardPrice,
       };
     }
 
     // Create user object
-    const user = await createAuthUser({
+    const user: StoredUser = {
       id: userId,
       firstName,
       lastName,
-      email,
+      email: email.toLowerCase(),
       passwordHash,
       phone,
       address,
       city,
       state,
       zipCode,
-      userType: userType || 'homeowner',
-      businessName: userType === 'contractor' ? businessName : undefined,
-      licenseNumber: userType === 'contractor' ? licenseNumber : undefined,
-      serviceAreas: userType === 'contractor' ? serviceAreas : undefined,
-      specialties: userType === 'contractor' ? specialties : undefined,
-      subscription,
-      verified: false,
+      userType: normalizedUserType,
+      ...((subscriptionPlan || normalizedUserType === 'supplier' || normalizedUserType === 'contractor') && {
+        businessName,
+        licenseNumber,
+        serviceAreas,
+        specialties,
+        supplierCategories,
+        supplierAudience,
+        supplierVisibilityRestricted,
+        supplierDescription,
+        supplierSpecialServices,
+        customOrderMaterials,
+        subscription,
+      }),
+      createdAt: new Date().toISOString(),
+      verified: false, // Require email verification
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Generate verification token
+    const verificationToken = generateToken();
+
+    await createVerificationToken(verificationToken, {
+      userId,
+      email: email.toLowerCase(),
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
     });
 
-    // Generate verification token in persistence store.
-    const verificationToken = await createVerificationToken(userId, email);
+    await createUser(user);
 
-    // Send verification email
-    const emailResult = await sendVerificationEmail(email, userId, verificationToken);
-    
-    if (!emailResult.success) {
-      console.error('Failed to send verification email, but user was created');
-    }
+    // Do not block registration response on SMTP delivery latency.
+    void sendVerificationEmailWithTimeout(email, userId, verificationToken)
+      .then((emailResult) => {
+        if (!emailResult.success) {
+          console.error('Failed to send verification email, but user was created');
+        }
+      })
+      .catch((error) => {
+        console.error('Verification email send timed out/failed after registration:', error);
+      });
 
     // Generate JWT token (but user still needs to verify email to login)
     const token = jwt.sign(
@@ -135,7 +271,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       token,
-      devVerificationToken: process.env.NODE_ENV === 'development' ? verificationToken : undefined,
       user: {
         id: user.id,
         firstName: user.firstName,
@@ -147,8 +282,8 @@ export async function POST(request: NextRequest) {
         subscription: subscription,
         verified: user.verified,
       },
-      message: userType === 'contractor' 
-        ? '30-day free trial activated! Please check your email to verify your account.'
+      message: subscriptionPlan
+        ? `90-day intro pricing activated at $10/month for ${subscriptionPlan.plan}! Please check your email to verify your account.`
         : 'Account created successfully! Please check your email to verify your account.',
     });
   } catch (error) {
