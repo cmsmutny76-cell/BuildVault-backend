@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Alert, Modal, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { Screen } from '../types/navigation';
+import MobileScreenHeader from '../components/MobileScreenHeader';
 
 interface CareerProgram {
   id: string;
@@ -20,7 +20,7 @@ interface CareerProgram {
 
 interface CareerOpportunitiesDashboardProps {
   onBack: () => void;
-  onNavigate: (screen: Screen, params?: unknown) => void;
+  onNavigate: (screen: string, params?: any) => void;
 }
 
 export default function CareerOpportunitiesDashboard({ onBack, onNavigate }: CareerOpportunitiesDashboardProps) {
@@ -146,15 +146,13 @@ export default function CareerOpportunitiesDashboard({ onBack, onNavigate }: Car
       >
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onBack} style={styles.backButton}>
-              <Text style={styles.backButtonText}>← Back to Categories</Text>
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Career Development</Text>
-            <Text style={styles.headerSubtitle}>
-              Training programs, certifications, and career advancement opportunities
-            </Text>
-          </View>
+          <MobileScreenHeader
+            onBack={onBack}
+            backLabel="← Back to Categories"
+            title="Career Development"
+            subtitle="Training programs, certifications, and career advancement opportunities"
+            theme="dark"
+          />
 
           {/* Stats */}
           <View style={styles.statsCard}>
@@ -315,7 +313,11 @@ export default function CareerOpportunitiesDashboard({ onBack, onNavigate }: Car
               style={styles.pathCard}
               onPress={() => Alert.alert('Specialty Trades', 'Explore specialized construction trades')}
             >
-              <Text style={styles.pathIcon}>🏗️</Text>
+              <Image
+                source={require('../assets/splash-icon.png')}
+                style={styles.brandPathIcon}
+                resizeMode="contain"
+              />
               <View style={styles.pathContent}>
                 <Text style={styles.pathTitle}>Specialty Trades</Text>
                 <Text style={styles.pathDescription}>
@@ -686,6 +688,11 @@ const styles = StyleSheet.create({
   },
   pathIcon: {
     fontSize: 32,
+    marginRight: 15,
+  },
+  brandPathIcon: {
+    width: 32,
+    height: 32,
     marginRight: 15,
   },
   pathContent: {

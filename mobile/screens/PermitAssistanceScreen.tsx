@@ -3,9 +3,10 @@ import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView } fr
 
 interface PermitAssistanceScreenProps {
   onBack: () => void;
+  onNavigate?: (screen: 'buildingCodes') => void;
 }
 
-export default function PermitAssistanceScreen({ onBack }: PermitAssistanceScreenProps) {
+export default function PermitAssistanceScreen({ onBack, onNavigate }: PermitAssistanceScreenProps) {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content}>
@@ -32,9 +33,22 @@ export default function PermitAssistanceScreen({ onBack }: PermitAssistanceScree
             <Text style={styles.featureItem}>✓ Expert consultation</Text>
           </View>
 
-          <View style={styles.comingSoonBadge}>
-            <Text style={styles.comingSoonText}>Coming Soon</Text>
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusText}>Beta Ready</Text>
           </View>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
+              if (onNavigate) {
+                onNavigate('buildingCodes');
+              } else {
+                onBack();
+              }
+            }}
+          >
+            <Text style={styles.actionButtonText}>Open Building Codes</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.placeholder}>
@@ -102,17 +116,30 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingLeft: 8,
   },
-  comingSoonBadge: {
+  statusBadge: {
     backgroundColor: 'rgba(212, 175, 55, 0.2)',
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 16,
     alignSelf: 'flex-start',
+    marginBottom: 14,
   },
-  comingSoonText: {
+  statusText: {
     color: '#D4AF37',
     fontSize: 14,
     fontWeight: '600',
+  },
+  actionButton: {
+    backgroundColor: '#D4AF37',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  actionButtonText: {
+    color: '#0f172a',
+    fontSize: 14,
+    fontWeight: '700',
   },
   placeholder: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',

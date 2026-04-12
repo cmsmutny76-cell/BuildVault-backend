@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Alert, Modal, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { Screen } from '../types/navigation';
+import MobileScreenHeader from '../components/MobileScreenHeader';
 
 interface MultiFamilyProperty {
   id: string;
@@ -18,7 +18,7 @@ interface MultiFamilyProperty {
 
 interface MultiFamilyDashboardProps {
   onBack: () => void;
-  onNavigate: (screen: Screen, params?: unknown) => void;
+  onNavigate: (screen: string, params?: any) => void;
 }
 
 export default function MultiFamilyDashboard({ onBack, onNavigate }: MultiFamilyDashboardProps) {
@@ -98,15 +98,13 @@ export default function MultiFamilyDashboard({ onBack, onNavigate }: MultiFamily
       >
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onBack} style={styles.backButton}>
-              <Text style={styles.backButtonText}>← Back to Categories</Text>
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Multi-Family Housing</Text>
-            <Text style={styles.headerSubtitle}>
-              Manage apartment complexes, amenities, and building systems
-            </Text>
-          </View>
+          <MobileScreenHeader
+            onBack={onBack}
+            backLabel="← Back to Categories"
+            title="Multi-Family Housing"
+            subtitle="Manage apartment complexes, amenities, and building systems"
+            theme="dark"
+          />
 
           {/* Stats Overview */}
           <View style={styles.statsCard}>

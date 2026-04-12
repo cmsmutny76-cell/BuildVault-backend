@@ -41,7 +41,8 @@ export async function POST(request: NextRequest) {
             status: 'cancelled',
             plan: user.subscription?.plan || 'contractor_pro',
             price: user.subscription?.price || 49.99,
-            trialEndsAt: user.subscription?.trialEndsAt,
+            standardPrice: user.subscription?.standardPrice,
+            discountEndsAt: user.subscription?.discountEndsAt,
           },
         });
 
@@ -59,7 +60,8 @@ export async function POST(request: NextRequest) {
         status: 'cancelled',
         plan: user.subscription?.plan || 'contractor_pro',
         price: user.subscription?.price || 49.99,
-        trialEndsAt: user.subscription?.trialEndsAt,
+        standardPrice: user.subscription?.standardPrice,
+        discountEndsAt: user.subscription?.discountEndsAt,
       },
     });
 

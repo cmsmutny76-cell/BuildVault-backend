@@ -494,7 +494,7 @@ eas submit --platform android
 **Known Issues to Document:**
 - List any bugs found
 - Note if they're blockers or can wait
-- Track in TODO.md or separate file
+- Track in BUILDVAULT_TODO.md or separate file
 
 ---
 

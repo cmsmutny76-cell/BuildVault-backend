@@ -5,6 +5,7 @@ export type WebUserType =
   | 'homeowner'
   | 'employment_seeker'
   | 'contractor'
+  | 'supplier'
   | 'commercial_builder'
   | 'multi_family_owner'
   | 'apartment_owner'

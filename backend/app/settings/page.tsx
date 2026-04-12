@@ -23,7 +23,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800">
-      <div className="bg-slate-950 border-b border-slate-700 sticky top-0 z-50">
+      <div className="bg-slate-950 border-b border-slate-700 sticky top-0 z-[1000]">
         <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/feed" className="text-xl font-bold text-blue-400">🏗️ Construction Lead</Link>
           <div className="flex gap-4 items-center">
@@ -34,7 +34,7 @@ export default function SettingsPage() {
             <div className="relative">
               <button onClick={() => setMenuOpen(!menuOpen)} className="text-2xl text-slate-300 hover:text-white transition">☰</button>
               {menuOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-700 rounded-lg shadow-lg z-50">
+                <div className="absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-700 rounded-lg shadow-lg z-[1200]">
                   <Link href="/profile" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white">👤 Profile</Link>
                   <Link href="/photo-analysis" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white">📸 Photo Analysis</Link>
                   <Link href="/blueprint-analysis" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white">📐 Blueprint Analysis</Link>
@@ -42,6 +42,7 @@ export default function SettingsPage() {
                   <Link href="/price-comparison" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white">💰 Price Comparison</Link>
                   <Link href="/find-contractors" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white">👷 Find Contractors</Link>
                   <Link href="/permit-assistance" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white">📋 Permit Assistance</Link>
+                  <Link href="/project-scheduling" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white">Project Scheduling</Link>
                   <Link href="/settings" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white">⚙️ Settings</Link>
                   <Link href="/help" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white">ℹ️ Help & Support</Link>
                 </div>
@@ -84,13 +85,6 @@ export default function SettingsPage() {
                   <p className="text-slate-400 text-sm">Automatically save project changes</p>
                 </div>
                 <button onClick={() => setAutoSave(!autoSave)} className={`px-4 py-2 rounded-md text-sm font-semibold ${autoSave ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'}`}>{autoSave ? 'On' : 'Off'}</button>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white font-medium">Dark Mode</p>
-                  <p className="text-slate-400 text-sm">Use dark theme (coming soon)</p>
-                </div>
-                <button className="px-4 py-2 rounded-md text-sm font-semibold bg-slate-700 text-slate-400 cursor-not-allowed">Coming Soon</button>
               </div>
             </div>
           </section>

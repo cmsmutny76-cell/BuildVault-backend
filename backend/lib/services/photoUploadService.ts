@@ -2,6 +2,7 @@ import { mkdir, unlink, writeFile } from 'fs/promises';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { dbQuery, isDatabaseEnabled } from '../db';
+import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set([
@@ -44,6 +45,106 @@ type UploadRow = {
 
 const uploadStore = new Map<string, UploadedPhotoRecord[]>();
 let uploadsTableEnsured = false;
+let objectStorageClient: S3Client | null = null;
+
+type ObjectStorageConfig = {
+  bucket: string;
+  region: string;
+  endpoint?: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  publicBaseUrl?: string;
+  forcePathStyle: boolean;
+};
+
+function getObjectStorageConfig(): ObjectStorageConfig | null {
+  const bucket = process.env.S3_BUCKET || process.env.R2_BUCKET;
+  const accessKeyId = process.env.S3_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID || process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY || process.env.R2_SECRET_ACCESS_KEY;
+
+  if (!bucket || !accessKeyId || !secretAccessKey) {
+    return null;
+  }
+
+  const endpoint = process.env.S3_ENDPOINT || process.env.R2_ENDPOINT;
+  const region = process.env.S3_REGION || process.env.AWS_REGION || (endpoint ? 'auto' : 'us-east-1');
+  const publicBaseUrl = process.env.S3_PUBLIC_BASE_URL || process.env.R2_PUBLIC_BASE_URL;
+  const forcePathStyle = (process.env.S3_FORCE_PATH_STYLE || process.env.R2_FORCE_PATH_STYLE || (endpoint ? 'true' : 'false')) === 'true';
+
+  return {
+    bucket,
+    region,
+    endpoint,
+    accessKeyId,
+    secretAccessKey,
+    publicBaseUrl,
+    forcePathStyle,
+  };
+}
+
+function getObjectStorageClient(config: ObjectStorageConfig): S3Client {
+  if (!objectStorageClient) {
+    objectStorageClient = new S3Client({
+      region: config.region,
+      endpoint: config.endpoint,
+      forcePathStyle: config.forcePathStyle,
+      credentials: {
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+      },
+    });
+  }
+
+  return objectStorageClient;
+}
+
+function encodeStorageKey(storageKey: string): string {
+  return storageKey
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+}
+
+function buildPublicObjectUrl(config: ObjectStorageConfig, storageKey: string): string {
+  const encodedKey = encodeStorageKey(storageKey);
+
+  if (config.publicBaseUrl) {
+    return `${config.publicBaseUrl.replace(/\/+$/, '')}/${encodedKey}`;
+  }
+
+  if (config.endpoint) {
+    return `${config.endpoint.replace(/\/+$/, '')}/${config.bucket}/${encodedKey}`;
+  }
+
+  return `https://${config.bucket}.s3.${config.region}.amazonaws.com/${encodedKey}`;
+}
+
+async function uploadToObjectStorage(
+  config: ObjectStorageConfig,
+  storageKey: string,
+  contentType: string,
+  body: Buffer
+): Promise<void> {
+  const client = getObjectStorageClient(config);
+  await client.send(
+    new PutObjectCommand({
+      Bucket: config.bucket,
+      Key: storageKey,
+      Body: body,
+      ContentType: contentType,
+    })
+  );
+}
+
+async function deleteFromObjectStorage(config: ObjectStorageConfig, storageKey: string): Promise<void> {
+  const client = getObjectStorageClient(config);
+  await client.send(
+    new DeleteObjectCommand({
+      Bucket: config.bucket,
+      Key: storageKey,
+    })
+  );
+}
 
 async function ensureUploadsTable() {
   if (!isDatabaseEnabled() || uploadsTableEnsured) {
@@ -216,18 +317,26 @@ export async function uploadProjectPhoto(input: {
   const fileExtension = EXTENSION_BY_MIME_TYPE[contentType] || path.extname(input.file.name) || '.bin';
   const fileName = `${fileId}${fileExtension}`;
   const storageKey = path.posix.join('uploads', 'projects', projectSegment, fileName);
-  const absoluteFilePath = path.join(process.cwd(), 'public', ...storageKey.split('/'));
-
-  await mkdir(path.dirname(absoluteFilePath), { recursive: true });
-
   const fileBuffer = Buffer.from(await input.file.arrayBuffer());
-  await writeFile(absoluteFilePath, fileBuffer);
+
+  const objectStorageConfig = getObjectStorageConfig();
+  let photoUrl: string;
+
+  if (objectStorageConfig) {
+    await uploadToObjectStorage(objectStorageConfig, storageKey, contentType, fileBuffer);
+    photoUrl = buildPublicObjectUrl(objectStorageConfig, storageKey);
+  } else {
+    const absoluteFilePath = path.join(process.cwd(), 'public', ...storageKey.split('/'));
+    await mkdir(path.dirname(absoluteFilePath), { recursive: true });
+    await writeFile(absoluteFilePath, fileBuffer);
+    photoUrl = `${input.baseUrl}/${storageKey}`;
+  }
 
   const record = {
     id: fileId,
     projectId: input.projectId,
     assetType: input.assetType || 'photo',
-    photoUrl: `${input.baseUrl}/${storageKey}`,
+    photoUrl,
     storageKey,
     uploadedAt: new Date().toISOString(),
     contentType,
@@ -291,9 +400,18 @@ export async function deleteProjectUpload(id: string): Promise<UploadedPhotoReco
   }
 
   const removedRecord = removed || existing;
-  try {
-    await unlink(resolveStorageAbsolutePath(removedRecord.storageKey));
-  } catch {
+  const objectStorageConfig = getObjectStorageConfig();
+
+  if (objectStorageConfig) {
+    try {
+      await deleteFromObjectStorage(objectStorageConfig, removedRecord.storageKey);
+    } catch {
+    }
+  } else {
+    try {
+      await unlink(resolveStorageAbsolutePath(removedRecord.storageKey));
+    } catch {
+    }
   }
 
   return removedRecord;

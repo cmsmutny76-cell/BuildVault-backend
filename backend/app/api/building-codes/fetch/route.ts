@@ -1,8 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
+import jwt from 'jsonwebtoken';
 import { fetchBuildingCodes } from '../../../../lib/services/complianceService';
 import { saveProjectDocument } from '../../../../lib/services/projectDocumentService';
 import { getProjectById } from '../../../../lib/services/projectService';
 import { buildBuildingCodesReportText } from '../../../../lib/services/reportBuilderService';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+function getAuthenticatedUserId(request: NextRequest): string | null {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.slice('Bearer '.length).trim();
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload & { userId?: string };
+    return typeof decoded.userId === 'string' ? decoded.userId : null;
+  } catch {
+    // Dev fallback token support from auth/login route
+    try {
+      const parsed = JSON.parse(Buffer.from(token, 'base64url').toString('utf8')) as {
+        userId?: string;
+        exp?: number;
+      };
+
+      if (typeof parsed.exp === 'number' && Date.now() > parsed.exp) {
+        return null;
+      }
+
+      return typeof parsed.userId === 'string' ? parsed.userId : null;
+    } catch {
+      return null;
+    }
+  }
+}
 
 interface Location {
   city?: string;
@@ -16,7 +49,7 @@ async function generateBuildingCodesResponse(input: {
   location: Location;
   projectType?: string;
   projectId?: string;
-  userId?: string;
+  userId: string;
 }) {
   const { location, projectType, projectId, userId } = input;
 
@@ -86,6 +119,14 @@ async function generateBuildingCodesResponse(input: {
 
 export async function POST(request: NextRequest) {
   try {
+    const authenticatedUserId = getAuthenticatedUserId(request);
+    if (!authenticatedUserId) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 },
+      );
+    }
+
     const { location, projectType, projectId, userId } = await request.json() as {
       location: Location;
       projectType?: string;
@@ -93,11 +134,18 @@ export async function POST(request: NextRequest) {
       userId?: string;
     };
 
+    if (userId && userId !== authenticatedUserId) {
+      return NextResponse.json(
+        { error: 'Forbidden: user mismatch' },
+        { status: 403 },
+      );
+    }
+
     return await generateBuildingCodesResponse({
       location,
       projectType,
       projectId,
-      userId,
+      userId: authenticatedUserId,
     });
   } catch (error) {
     console.error('Building codes fetch error:', error);
@@ -110,6 +158,14 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const authenticatedUserId = getAuthenticatedUserId(request);
+    if (!authenticatedUserId) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 },
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const state = searchParams.get('state');
     const city = searchParams.get('city') || undefined;
@@ -117,7 +173,14 @@ export async function GET(request: NextRequest) {
     const zipCode = searchParams.get('zipCode') || undefined;
     const projectType = searchParams.get('projectType') || undefined;
     const projectId = searchParams.get('projectId') || undefined;
-    const userId = searchParams.get('userId') || undefined;
+    const requestedUserId = searchParams.get('userId') || undefined;
+
+    if (requestedUserId && requestedUserId !== authenticatedUserId) {
+      return NextResponse.json(
+        { error: 'Forbidden: user mismatch' },
+        { status: 403 },
+      );
+    }
 
     if (!state) {
       return NextResponse.json(
@@ -130,7 +193,7 @@ export async function GET(request: NextRequest) {
       location: { state, city, county, zipCode },
       projectType,
       projectId,
-      userId,
+      userId: authenticatedUserId,
     });
   } catch (error) {
     console.error('Building codes get error:', error);

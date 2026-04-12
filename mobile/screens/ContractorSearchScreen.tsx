@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ImageBackground, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
+
 export interface Contractor {
   id: string;
   name: string;
@@ -53,7 +55,7 @@ const ContractorSearchScreen: React.FC<ContractorSearchScreenProps> = ({
       setError(null);
 
       // First, fetch the project details
-      const projectResponse = await fetch(`http://localhost:3000/api/projects`);
+      const projectResponse = await fetch(`${API_BASE_URL}/projects`);
       const projectData = await projectResponse.json();
 
       if (!projectData.success || !projectData.projects) {
@@ -67,7 +69,7 @@ const ContractorSearchScreen: React.FC<ContractorSearchScreenProps> = ({
       }
 
       // Call AI matching API
-      const matchResponse = await fetch('http://localhost:3000/api/ai/match-contractors', {
+      const matchResponse = await fetch(`${API_BASE_URL}/ai/match-contractors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -273,10 +275,7 @@ const ContractorSearchScreen: React.FC<ContractorSearchScreenProps> = ({
         )}
       </View>
 
-      <TouchableOpacity
-        style={styles.viewProfileButton}
-        onPress={() => onViewContractor(contractor)}
-      >
+      <TouchableOpacity style={styles.viewProfileButton}>
         <Text style={styles.viewProfileText}>View Full Profile →</Text>
       </TouchableOpacity>
     </TouchableOpacity>

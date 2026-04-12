@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Alert, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { Screen } from '../types/navigation';
+import MobileScreenHeader from '../components/MobileScreenHeader';
 
 interface ApartmentUnit {
   id: string;
@@ -19,7 +19,7 @@ interface ApartmentUnit {
 
 interface ApartmentDashboardProps {
   onBack: () => void;
-  onNavigate: (screen: Screen, params?: unknown) => void;
+  onNavigate: (screen: string, params?: any) => void;
 }
 
 export default function ApartmentDashboard({ onBack, onNavigate }: ApartmentDashboardProps) {
@@ -122,15 +122,13 @@ export default function ApartmentDashboard({ onBack, onNavigate }: ApartmentDash
       >
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onBack} style={styles.backButton}>
-              <Text style={styles.backButtonText}>← Back to Categories</Text>
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Apartment Management</Text>
-            <Text style={styles.headerSubtitle}>
-              Track unit status, manage turnovers, and coordinate renovations
-            </Text>
-          </View>
+          <MobileScreenHeader
+            onBack={onBack}
+            backLabel="← Back to Categories"
+            title="Apartment Management"
+            subtitle="Track unit status, manage turnovers, and coordinate renovations"
+            theme="dark"
+          />
 
           {/* Stats Overview */}
           <View style={styles.statsContainer}>

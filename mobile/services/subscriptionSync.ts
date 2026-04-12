@@ -1,6 +1,21 @@
 import { CustomerInfo } from 'react-native-purchases';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+const AUTH_TOKEN_KEY = 'buildvault.authToken';
+
+async function buildAuthHeaders(): Promise<Record<string, string>> {
+  const token = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  return headers;
+}
 
 /**
  * Sync subscription state from RevenueCat to backend
@@ -12,12 +27,13 @@ export async function syncSubscriptionToBackend(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const entitlements = Object.values(customerInfo.entitlements.active);
+    const headers = await buildAuthHeaders();
     
     if (entitlements.length === 0) {
       // No active subscription, sync that too
-      await fetch(`${API_BASE_URL}/api/subscription/sync`, {
+      const response = await fetch(`${API_BASE_URL}/api/subscription/sync`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           userId,
           subscriptionData: {
@@ -26,6 +42,12 @@ export async function syncSubscriptionToBackend(
           },
         }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        return { success: false, error: errorData.error || 'Sync failed' };
+      }
+
       return { success: true };
     }
 
@@ -35,8 +57,9 @@ export async function syncSubscriptionToBackend(
       userId,
       subscriptionData: {
         productId: primaryEntitlement.productIdentifier,
-        status: primaryEntitlement.periodType === 'trial' ? 'trial' : 'active',
-        isTrial: primaryEntitlement.periodType === 'trial',
+        status: 'active',
+        isTrial:
+          primaryEntitlement.periodType === 'trial' || primaryEntitlement.periodType === 'intro',
         expiresAt: primaryEntitlement.expirationDate || null,
         willRenew: primaryEntitlement.willRenew,
         store: primaryEntitlement.store,
@@ -45,7 +68,7 @@ export async function syncSubscriptionToBackend(
 
     const response = await fetch(`${API_BASE_URL}/api/subscription/sync`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(subscriptionData),
     });
 
@@ -73,8 +96,12 @@ export async function fetchSubscriptionFromBackend(
   error?: string;
 }> {
   try {
+    const headers = await buildAuthHeaders();
     const response = await fetch(
-      `${API_BASE_URL}/api/subscription/status?userId=${userId}`
+      `${API_BASE_URL}/api/subscription/create?userId=${userId}`,
+      {
+        headers,
+      }
     );
 
     if (!response.ok) {

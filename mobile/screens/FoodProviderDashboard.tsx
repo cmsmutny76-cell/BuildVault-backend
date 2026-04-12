@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Alert, Modal, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { Screen } from '../types/navigation';
+import MobileScreenHeader from '../components/MobileScreenHeader';
 
 interface FoodVendorProfile {
   id: string;
@@ -22,7 +22,7 @@ interface FoodVendorProfile {
 
 interface FoodProviderDashboardProps {
   onBack: () => void;
-  onNavigate: (screen: Screen, params?: unknown) => void;
+  onNavigate: (screen: string, params?: any) => void;
 }
 
 export default function FoodProviderDashboard({ onBack, onNavigate }: FoodProviderDashboardProps) {
@@ -126,15 +126,13 @@ export default function FoodProviderDashboard({ onBack, onNavigate }: FoodProvid
       >
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onBack} style={styles.backButton}>
-              <Text style={styles.backButtonText}>← Back to Categories</Text>
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Construction Site Catering</Text>
-            <Text style={styles.headerSubtitle}>
-              Food trucks and catering services for job sites and crews
-            </Text>
-          </View>
+          <MobileScreenHeader
+            onBack={onBack}
+            backLabel="← Back to Categories"
+            title="Construction Site Catering"
+            subtitle="Food trucks and catering services for job sites and crews"
+            theme="dark"
+          />
 
           {/* Stats */}
           <View style={styles.statsCard}>
@@ -359,7 +357,11 @@ export default function FoodProviderDashboard({ onBack, onNavigate }: FoodProvid
             </View>
 
             <View style={styles.benefitCard}>
-              <Text style={styles.benefitIcon}>🏗️</Text>
+              <Image
+                source={require('../assets/splash-icon.png')}
+                style={styles.brandBenefitIcon}
+                resizeMode="contain"
+              />
               <View style={styles.benefitContent}>
                 <Text style={styles.benefitTitle}>Job Site Friendly</Text>
                 <Text style={styles.benefitDescription}>
@@ -822,6 +824,11 @@ const styles = StyleSheet.create({
   },
   benefitIcon: {
     fontSize: 28,
+    marginRight: 12,
+  },
+  brandBenefitIcon: {
+    width: 28,
+    height: 28,
     marginRight: 12,
   },
   benefitContent: {

@@ -14,6 +14,7 @@ import {
 } from "../../lib/web/apiClient";
 import { clearAuthSession, getAuthToken, getAuthUser, type AuthUser } from "../../lib/web/authStorage";
 import { moderateProjectPost } from "../../lib/web/postModeration";
+import WebBrandMark from "../../components/WebBrandMark";
 
 const PROJECT_CATEGORIES: Array<{
   value: string;
@@ -452,8 +453,8 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black/45 px-6 py-10 text-zinc-100">
-        <div className="mx-auto max-w-4xl rounded-lg border border-zinc-200 bg-white p-6 text-zinc-900">
+      <div className="min-h-screen bg-black/55 px-6 py-10 text-zinc-100">
+        <div className="mx-auto max-w-4xl rounded-lg border border-amber-300/20 bg-slate-950/75 p-6 text-zinc-100 backdrop-blur-sm">
           Loading dashboard...
         </div>
       </div>
@@ -461,111 +462,126 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black/45 px-6 py-10 text-zinc-100">
+    <div className="min-h-screen bg-black/55 px-6 py-10 text-zinc-100">
       <main className="mx-auto flex w-full max-w-4xl flex-col gap-6">
         {/* Top Navigation */}
-        <section className="rounded-lg border border-zinc-200 bg-white p-4 text-zinc-900">
+        <section className="relative z-[1000] overflow-visible rounded-lg border border-amber-300/20 bg-slate-950/75 p-4 text-zinc-100 backdrop-blur-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-6">
+              <WebBrandMark href="/dashboard" textClassName="text-white" />
               <Link
                 href="/categories"
-                className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                className="text-sm font-semibold text-amber-300 hover:text-amber-200"
               >
                 Categories
               </Link>
               <Link
                 href="/feed"
-                className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                className="text-sm font-semibold text-amber-300 hover:text-amber-200"
               >
                 Feed
               </Link>
               <Link
                 href="/messages"
-                className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                className="text-sm font-semibold text-amber-300 hover:text-amber-200"
               >
                 Messages
               </Link>
             </div>
 
             {/* User Dropdown Menu */}
-            <div className="relative">
+            <div className="relative z-[1100]">
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
-                className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+                className="rounded-md border border-amber-300/25 bg-slate-900/80 px-3 py-2 text-sm text-zinc-100 hover:bg-slate-800"
               >
                 ☰
               </button>
 
               {menuOpen && (
-                <div className="absolute right-0 mt-2 w-48 rounded-md border border-zinc-300 bg-white text-zinc-900 shadow-lg">
+                <div className="absolute right-0 z-[1200] mt-2 w-56 rounded-md border border-amber-300/20 bg-slate-950/95 text-zinc-100 shadow-lg backdrop-blur-sm">
                   <div>
                     <Link
                       href="/profile"
-                      className="block w-full px-4 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       👤 Profile
                     </Link>
                     <Link
                       href="/photo-analysis"
-                      className="block w-full px-4 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       📸 Photo Analysis
                     </Link>
                     <Link
                       href="/blueprint-analysis"
-                      className="block w-full px-4 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       📐 Blueprint Analysis
                     </Link>
                     <Link
                       href="/building-codes"
-                      className="block w-full px-4 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       🏛️ Building Codes
                     </Link>
                     <Link
                       href="/price-comparison"
-                      className="block w-full px-4 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       💰 Price Comparison
                     </Link>
                     <Link
                       href="/find-contractors"
-                      className="block w-full px-4 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       👷 Find Contractors
                     </Link>
                     <Link
+                      href="/find-suppliers"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      🧱 Find Suppliers
+                    </Link>
+                    <Link
                       href="/permit-assistance"
-                      className="block w-full px-4 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       📋 Permit Assistance
                     </Link>
+                      <Link
+                        href="/project-scheduling"
+                        className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        Project Scheduling
+                      </Link>
                     <Link
                       href="/settings"
-                      className="block w-full px-4 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       ⚙️ Settings
                     </Link>
-                    <div className="border-t border-zinc-200"></div>
+                    <div className="border-t border-white/10"></div>
                     <Link
                       href="/help"
-                      className="block w-full px-4 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       ℹ️ Help & Support
                     </Link>
-                    <div className="border-t border-zinc-200"></div>
+                    <div className="border-t border-white/10"></div>
                     <button
-                      className="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-red-300 hover:bg-slate-800"
                       onClick={handleSignOut}
                     >
                       Sign Out
@@ -577,33 +593,33 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="rounded-lg border border-zinc-200 bg-white p-6 text-zinc-900">
+        <section className="rounded-lg border border-amber-300/20 bg-slate-950/75 p-6 text-zinc-100 backdrop-blur-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold">BuildVault Dashboard</h1>
-              <p className="mt-1 text-sm text-zinc-600">Connected web platform using shared backend APIs.</p>
+              <p className="mt-1 text-sm text-slate-300">Connected web platform using shared backend APIs.</p>
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 text-sm text-zinc-700 sm:grid-cols-2">
-            <div className="rounded-md bg-zinc-100 p-3">
-              <div className="text-zinc-500">Signed in as</div>
+          <div className="mt-4 grid gap-3 text-sm text-slate-200 sm:grid-cols-2">
+            <div className="rounded-md border border-white/10 bg-white/5 p-3">
+              <div className="text-slate-400">Signed in as</div>
               <div className="font-semibold">{displayName}</div>
               <div>{user?.email}</div>
             </div>
-            <div className="rounded-md bg-zinc-100 p-3">
-              <div className="text-zinc-500">Account type</div>
+            <div className="rounded-md border border-white/10 bg-white/5 p-3">
+              <div className="text-slate-400">Account type</div>
               <div className="font-semibold capitalize">{user?.userType}</div>
               <div>ID: {user?.id}</div>
             </div>
           </div>
         </section>
 
-        <section className="rounded-lg border border-zinc-200 bg-white p-6 text-zinc-900">
+        <section className="rounded-lg border border-amber-300/20 bg-slate-950/75 p-6 text-zinc-100 backdrop-blur-sm">
           <h2 className="text-lg font-semibold">Project Context</h2>
-          <p className="mt-1 text-sm text-zinc-600">Select a project to scope estimates and messaging, same pattern as app project selector.</p>
+          <p className="mt-1 text-sm text-slate-300">Select a project to scope estimates and messaging, same pattern as app project selector.</p>
           <select
-            className="mt-3 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            className="mt-3 w-full rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100"
             value={selectedProjectId}
             onChange={(event) => setSelectedProjectId(event.target.value)}
           >
@@ -617,13 +633,13 @@ export default function DashboardPage() {
         </section>
 
         {error && (
-          <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</section>
+          <section className="rounded-lg border border-red-400/30 bg-red-950/40 p-4 text-sm text-red-200">{error}</section>
         )}
 
-        <section className="rounded-lg border border-zinc-200 bg-white p-6 text-zinc-900">
+        <section className="rounded-lg border border-amber-300/20 bg-slate-950/75 p-6 text-zinc-100 backdrop-blur-sm">
           <h2 className="text-lg font-semibold">Profile (API: /api/users/profile)</h2>
           {profile ? (
-            <div className="mt-3 text-sm text-zinc-700">
+            <div className="mt-3 text-sm text-slate-200">
               <div>
                 {profile.firstName} {profile.lastName}
               </div>
@@ -634,45 +650,45 @@ export default function DashboardPage() {
               <div className="capitalize">{profile.userType || "-"}</div>
             </div>
           ) : (
-            <p className="mt-3 text-sm text-zinc-600">No profile data available.</p>
+            <p className="mt-3 text-sm text-slate-300">No profile data available.</p>
           )}
         </section>
 
-        <section className="rounded-lg border border-zinc-200 bg-white p-6 text-zinc-900">
+        <section className="rounded-lg border border-amber-300/20 bg-slate-950/75 p-6 text-zinc-100 backdrop-blur-sm">
           <h2 className="text-lg font-semibold">Create Project (Same flow as mobile API)</h2>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100"
               placeholder="Project title"
               value={projectTitle}
               onChange={(event) => setProjectTitle(event.target.value)}
             />
             <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100"
               placeholder="Project type"
               value={projectType}
               onChange={(event) => setProjectType(event.target.value)}
             />
             <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100"
               placeholder="City"
               value={projectCity}
               onChange={(event) => setProjectCity(event.target.value)}
             />
             <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100"
               placeholder="State"
               value={projectState}
               onChange={(event) => setProjectState(event.target.value)}
             />
             <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100"
               placeholder="ZIP"
               value={projectZipCode}
               onChange={(event) => setProjectZipCode(event.target.value)}
             />
             <button
-              className="rounded-md bg-zinc-900 px-3 py-2 text-sm text-white disabled:opacity-60"
+              className="rounded-md bg-amber-300 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-60"
               type="button"
               onClick={handleCreateProject}
               disabled={creatingProject || !projectTitle.trim()}
@@ -682,17 +698,17 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="rounded-lg border border-zinc-200 bg-white p-6 text-zinc-900">
+        <section className="rounded-lg border border-amber-300/20 bg-slate-950/75 p-6 text-zinc-100 backdrop-blur-sm">
           <h2 className="text-lg font-semibold">My Projects (API: /api/projects)</h2>
           {projects.length === 0 ? (
-            <p className="mt-3 text-sm text-zinc-600">No projects found for this user yet.</p>
+            <p className="mt-3 text-sm text-slate-300">No projects found for this user yet.</p>
           ) : (
             <ul className="mt-3 space-y-3">
               {projects.map((project) => (
-                <li key={project.id} className="rounded-md border border-zinc-200 p-3 text-sm">
+                <li key={project.id} className="rounded-md border border-white/10 bg-white/5 p-3 text-sm">
                   <div className="font-semibold">{project.title}</div>
-                  <div className="text-zinc-600 capitalize">{project.projectType} • {project.status}</div>
-                  <div className="text-zinc-500">
+                  <div className="text-slate-300 capitalize">{project.projectType} • {project.status}</div>
+                  <div className="text-slate-400">
                     {project.location?.city || "-"}, {project.location?.state || "-"}
                   </div>
                 </li>
@@ -701,23 +717,23 @@ export default function DashboardPage() {
           )}
         </section>
 
-        <section className="rounded-lg border border-zinc-200 bg-white p-6 text-zinc-900">
+        <section className="rounded-lg border border-amber-300/20 bg-slate-950/75 p-6 text-zinc-100 backdrop-blur-sm">
           <h2 className="text-lg font-semibold">AI Photo Analysis (API: /api/ai/analyze-photo)</h2>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-2"
+              className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100 sm:col-span-2"
               placeholder="Photo URL"
               value={analysisPhotoUrl}
               onChange={(event) => setAnalysisPhotoUrl(event.target.value)}
             />
             <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100"
               placeholder="Project type"
               value={analysisProjectType}
               onChange={(event) => setAnalysisProjectType(event.target.value)}
             />
             <button
-              className="rounded-md bg-zinc-900 px-3 py-2 text-sm text-white disabled:opacity-60"
+              className="rounded-md bg-amber-300 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-60"
               type="button"
               onClick={handleAnalyzePhoto}
               disabled={analyzing || !analysisPhotoUrl.trim()}
@@ -726,58 +742,58 @@ export default function DashboardPage() {
             </button>
           </div>
           {analysisResult?.analysis && (
-            <div className="mt-3 rounded-md bg-zinc-100 p-3 text-sm">
+            <div className="mt-3 rounded-md border border-white/10 bg-white/5 p-3 text-sm text-slate-200">
               <div className="font-semibold">Condition: {analysisResult.analysis.condition || "N/A"}</div>
               <div className="mt-1">Materials: {(analysisResult.analysis.materials || []).map((material) => `${material.name} (${material.quantity} ${material.unit})`).join(', ') || 'N/A'}</div>
             </div>
           )}
         </section>
 
-        <section className="rounded-lg border border-zinc-200 bg-white p-6 text-zinc-900">
+        <section className="rounded-lg border border-amber-300/20 bg-slate-950/75 p-6 text-zinc-100 backdrop-blur-sm">
           <h2 className="text-lg font-semibold">Contractor Matching (API: /api/ai/match-contractors)</h2>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <input className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={String(matchBudget)} onChange={(event) => setMatchBudget(Number(event.target.value || 0))} placeholder="Budget" />
-            <input className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={matchCity} onChange={(event) => setMatchCity(event.target.value)} placeholder="City" />
-            <input className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={matchState} onChange={(event) => setMatchState(event.target.value)} placeholder="State" />
-            <input className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={matchZipCode} onChange={(event) => setMatchZipCode(event.target.value)} placeholder="ZIP" />
-            <input className="rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-2" value={matchServices} onChange={(event) => setMatchServices(event.target.value)} placeholder="Services (comma separated)" />
-            <button className="rounded-md bg-zinc-900 px-3 py-2 text-sm text-white disabled:opacity-60" type="button" onClick={handleMatchContractors} disabled={matching}>
+            <input className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100" value={String(matchBudget)} onChange={(event) => setMatchBudget(Number(event.target.value || 0))} placeholder="Budget" />
+            <input className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100" value={matchCity} onChange={(event) => setMatchCity(event.target.value)} placeholder="City" />
+            <input className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100" value={matchState} onChange={(event) => setMatchState(event.target.value)} placeholder="State" />
+            <input className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100" value={matchZipCode} onChange={(event) => setMatchZipCode(event.target.value)} placeholder="ZIP" />
+            <input className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100 sm:col-span-2" value={matchServices} onChange={(event) => setMatchServices(event.target.value)} placeholder="Services (comma separated)" />
+            <button className="rounded-md bg-amber-300 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-60" type="button" onClick={handleMatchContractors} disabled={matching}>
               {matching ? "Matching..." : "Find Matches"}
             </button>
           </div>
           {matches.length > 0 && (
             <ul className="mt-3 space-y-2 text-sm">
               {matches.slice(0, 5).map((match) => (
-                <li key={match.contractor.id} className="rounded-md border border-zinc-200 p-2">
+                <li key={match.contractor.id} className="rounded-md border border-white/10 bg-white/5 p-2">
                   <div className="font-semibold">{match.contractor.name} • Score {match.matchScore}</div>
-                  <div className="text-zinc-600">{match.matchReasons.join(' • ')}</div>
+                  <div className="text-slate-300">{match.matchReasons.join(' • ')}</div>
                 </li>
               ))}
             </ul>
           )}
         </section>
 
-        <section className="rounded-lg border border-zinc-200 bg-white p-6 text-zinc-900">
+        <section className="rounded-lg border border-amber-300/20 bg-slate-950/75 p-6 text-zinc-100 backdrop-blur-sm">
           <h2 className="text-lg font-semibold">Estimates (API: /api/estimates)</h2>
           <div className="mt-3 grid gap-2 sm:grid-cols-4">
-            <input className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={estimateContractorId} onChange={(event) => setEstimateContractorId(event.target.value)} placeholder="Contractor ID" />
-            <input className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={estimateDescription} onChange={(event) => setEstimateDescription(event.target.value)} placeholder="Line item" />
-            <input className="rounded-md border border-zinc-300 px-3 py-2 text-sm" type="number" value={estimateQuantity} onChange={(event) => setEstimateQuantity(Number(event.target.value || 1))} placeholder="Qty" />
-            <input className="rounded-md border border-zinc-300 px-3 py-2 text-sm" type="number" value={estimateUnitPrice} onChange={(event) => setEstimateUnitPrice(Number(event.target.value || 0))} placeholder="Unit price" />
+            <input className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100" value={estimateContractorId} onChange={(event) => setEstimateContractorId(event.target.value)} placeholder="Contractor ID" />
+            <input className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100" value={estimateDescription} onChange={(event) => setEstimateDescription(event.target.value)} placeholder="Line item" />
+            <input className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100" type="number" value={estimateQuantity} onChange={(event) => setEstimateQuantity(Number(event.target.value || 1))} placeholder="Qty" />
+            <input className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100" type="number" value={estimateUnitPrice} onChange={(event) => setEstimateUnitPrice(Number(event.target.value || 0))} placeholder="Unit price" />
           </div>
-          <button className="mt-2 rounded-md bg-zinc-900 px-3 py-2 text-sm text-white disabled:opacity-60" type="button" onClick={handleCreateEstimate} disabled={creatingEstimate || !selectedProjectId}>
+          <button className="mt-2 rounded-md bg-amber-300 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-60" type="button" onClick={handleCreateEstimate} disabled={creatingEstimate || !selectedProjectId}>
             {creatingEstimate ? "Creating estimate..." : "Create Estimate"}
           </button>
           {!selectedProjectId ? (
-            <p className="mt-2 text-sm text-zinc-600">Select a project to load estimates.</p>
+            <p className="mt-2 text-sm text-slate-300">Select a project to load estimates.</p>
           ) : estimates.length === 0 ? (
-            <p className="mt-2 text-sm text-zinc-600">No estimates yet for this project.</p>
+            <p className="mt-2 text-sm text-slate-300">No estimates yet for this project.</p>
           ) : (
             <ul className="mt-2 space-y-2 text-sm">
               {estimates.map((estimate) => (
-                <li key={estimate.id} className="rounded-md border border-zinc-200 p-2">
+                <li key={estimate.id} className="rounded-md border border-white/10 bg-white/5 p-2">
                   <div className="font-semibold">{estimate.id}</div>
-                  <div className="text-zinc-600">Contractor: {estimate.contractorId} • ${estimate.totalAmount} • {estimate.status}</div>
+                  <div className="text-slate-300">Contractor: {estimate.contractorId} • ${estimate.totalAmount} • {estimate.status}</div>
                   <div className="mt-2 flex gap-2">
                     <button className="rounded-md border border-green-300 px-2 py-1 text-xs text-green-700" type="button" onClick={() => handleEstimateAction(estimate.id, "accept")}>Accept</button>
                     <button className="rounded-md border border-red-300 px-2 py-1 text-xs text-red-700" type="button" onClick={() => handleEstimateAction(estimate.id, "reject")}>Reject</button>
@@ -788,10 +804,10 @@ export default function DashboardPage() {
           )}
         </section>
 
-        <section className="rounded-lg border border-zinc-200 bg-white p-6 text-zinc-900">
+        <section className="rounded-lg border border-amber-300/20 bg-slate-950/75 p-6 text-zinc-100 backdrop-blur-sm">
           <h2 className="text-lg font-semibold">Messaging (API: /api/messages)</h2>
           <select
-            className="mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            className="mt-2 w-full rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100"
             value={selectedConversationId}
             onChange={(event) => setSelectedConversationId(event.target.value)}
           >
@@ -803,28 +819,28 @@ export default function DashboardPage() {
             ))}
           </select>
           {conversations.length === 0 ? (
-            <p className="mt-2 text-sm text-zinc-600">No conversations found.</p>
+            <p className="mt-2 text-sm text-slate-300">No conversations found.</p>
           ) : (
             <ul className="mt-2 space-y-2 text-sm">
               {conversations.map((conversation) => (
-                <li key={conversation.id} className="rounded-md border border-zinc-200 p-2">
+                <li key={conversation.id} className="rounded-md border border-white/10 bg-white/5 p-2">
                   <div className="font-semibold">{conversation.participantInfo?.name || 'Conversation'}</div>
-                  <div className="text-zinc-600">{conversation.projectTitle || 'No project'} • Unread: {conversation.unreadCount || 0}</div>
-                  <div className="text-zinc-500">{conversation.lastMessage?.content || 'No messages yet'}</div>
+                  <div className="text-slate-300">{conversation.projectTitle || 'No project'} • Unread: {conversation.unreadCount || 0}</div>
+                  <div className="text-slate-400">{conversation.lastMessage?.content || 'No messages yet'}</div>
                 </li>
               ))}
             </ul>
           )}
           {selectedConversationId && (
-            <div className="mt-4 rounded-md border border-zinc-200 p-3">
+            <div className="mt-4 rounded-md border border-white/10 bg-slate-900/55 p-3">
               <h3 className="font-semibold">Conversation Thread</h3>
               <div className="mt-2 max-h-56 space-y-2 overflow-auto text-sm">
                 {messages.length === 0 ? (
-                  <p className="text-zinc-600">No messages loaded.</p>
+                  <p className="text-slate-300">No messages loaded.</p>
                 ) : (
                   messages.map((message) => (
-                    <div key={message.id} className="rounded-md bg-zinc-100 p-2">
-                      <div className="text-xs text-zinc-500">{message.senderId} • {new Date(message.timestamp).toLocaleString()}</div>
+                    <div key={message.id} className="rounded-md border border-white/10 bg-white/5 p-2">
+                      <div className="text-xs text-slate-400">{message.senderId} • {new Date(message.timestamp).toLocaleString()}</div>
                       <div>{message.content}</div>
                     </div>
                   ))
@@ -832,12 +848,12 @@ export default function DashboardPage() {
               </div>
               <div className="mt-3 flex gap-2">
                 <input
-                  className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  className="flex-1 rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100"
                   value={messageDraft}
                   onChange={(event) => setMessageDraft(event.target.value)}
                   placeholder="Type a message"
                 />
-                <button className="rounded-md bg-zinc-900 px-3 py-2 text-sm text-white disabled:opacity-60" type="button" onClick={handleSendMessage} disabled={sendingMessage || !messageDraft.trim()}>
+                <button className="rounded-md bg-amber-300 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-60" type="button" onClick={handleSendMessage} disabled={sendingMessage || !messageDraft.trim()}>
                   {sendingMessage ? "Sending..." : "Send"}
                 </button>
               </div>

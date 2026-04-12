@@ -11,6 +11,7 @@ type PlanCard = {
   key: TierKey;
   title: string;
   price: string;
+  standardPrice?: string;
   subtitle: string;
   features: string[];
 };
@@ -29,24 +30,26 @@ const PLANS: PlanCard[] = [
   },
   {
     key: "pro49",
-    title: "Pro 49",
-    price: "$49.99/mo",
+    title: "Contractor Plan",
+    price: "$10.00/mo for 90 days",
+    standardPrice: "$49.99/mo after intro period",
     subtitle: "Contractors, landscapers, and trade schools",
     features: [
       "AI matching and lead visibility",
       "Profile placement in search and recommendations",
-      "30-day trial for new paid accounts",
+      "90-day introductory billing at $10 per month",
     ],
   },
   {
     key: "pro99",
-    title: "Pro 99",
-    price: "$99.99/mo",
+    title: "Business Plan",
+    price: "$10.00/mo for 90 days",
+    standardPrice: "$99.99/mo after intro period",
     subtitle: "Commercial and portfolio operators",
     features: [
       "Commercial pipeline and advanced routing",
       "Priority account visibility and matching",
-      "30-day trial for new paid accounts",
+      "90-day introductory billing at $10 per month",
     ],
   },
 ];
@@ -128,7 +131,7 @@ export default function PricingPage() {
         <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm md:p-8">
           <h1 className="text-3xl font-bold md:text-4xl">BuildVault Pricing</h1>
           <p className="mt-2 text-zinc-600">
-            Choose the plan that matches your account type. Paid plans include a 30-day trial when available.
+            Choose the plan that matches your account type. Paid plans start at $10/month for 90 days, then continue at the standard monthly rate.
           </p>
           {!user && (
             <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -163,6 +166,9 @@ export default function PricingPage() {
                     {plan.price}
                   </span>
                 </div>
+                {plan.standardPrice && (
+                  <p className="mb-3 text-xs font-medium text-zinc-500">{plan.standardPrice}</p>
+                )}
 
                 <ul className="space-y-2 text-sm text-zinc-700">
                   {plan.features.map((feature) => (

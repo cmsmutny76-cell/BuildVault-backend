@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { getAuthToken } from '../../lib/web/authStorage';
 
 type UploadedBlueprint = {
   id: string;
@@ -178,9 +179,13 @@ export default function BlueprintAnalysisPage() {
       }
 
       const primaryBlueprintUrl = blueprintUrls[0] || blueprintUrl;
+      const token = getAuthToken();
       const response = await fetch('/api/ai/analyze-blueprint', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           projectId,
           userId,
@@ -222,7 +227,10 @@ export default function BlueprintAnalysisPage() {
 
   const loadDocuments = async () => {
     try {
-      const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/documents`);
+      const token = getAuthToken();
+      const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/documents`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       const data = await response.json();
       if (response.ok && data.success) {
         setDocuments(data.documents || []);
@@ -236,7 +244,7 @@ export default function BlueprintAnalysisPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800">
-      <div className="bg-slate-950 border-b border-slate-700 sticky top-0 z-50">
+      <div className="bg-slate-950 border-b border-slate-700 sticky top-0 z-[1000]">
         <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/feed" className="text-xl font-bold text-blue-400">🏗️ Construction Lead</Link>
           <div className="flex gap-4 items-center">
@@ -246,7 +254,7 @@ export default function BlueprintAnalysisPage() {
             <div className="relative">
               <button onClick={() => setMenuOpen(!menuOpen)} className="text-2xl text-slate-300 hover:text-white transition">☰</button>
               {menuOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-700 rounded-lg shadow-lg z-50">
+                <div className="absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-700 rounded-lg shadow-lg z-[1200]">
                   <Link href="/profile" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white">👤 Profile</Link>
                   <Link href="/photo-analysis" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white">📸 Photo Analysis</Link>
                   <Link href="/blueprint-analysis" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white">📐 Blueprint Analysis</Link>
@@ -254,6 +262,7 @@ export default function BlueprintAnalysisPage() {
                   <Link href="/price-comparison" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white">💰 Price Comparison</Link>
                   <Link href="/find-contractors" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white">👷 Find Contractors</Link>
                   <Link href="/permit-assistance" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white">📋 Permit Assistance</Link>
+                  <Link href="/project-scheduling" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white">Project Scheduling</Link>
                   <Link href="/settings" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white">⚙️ Settings</Link>
                   <Link href="/help" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white">ℹ️ Help & Support</Link>
                 </div>

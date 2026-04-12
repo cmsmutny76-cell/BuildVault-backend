@@ -9,6 +9,9 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import MobileScreenHeader from '../components/MobileScreenHeader';
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
 
 interface Project {
   id: string;
@@ -51,7 +54,7 @@ export default function ProjectSelectorScreen({
   const fetchProjects = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:3000/api/projects');
+      const response = await fetch(`${API_BASE_URL}/projects`);
       const data = await response.json();
 
       if (data.success) {
@@ -108,13 +111,13 @@ export default function ProjectSelectorScreen({
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={onBack}>
-          <Text style={styles.backButtonText}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Select Project</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <MobileScreenHeader
+        onBack={onBack}
+        backLabel="← Back"
+        title="Select Project"
+        subtitle="Choose the active project for estimates, messaging, and analysis"
+        theme="dark"
+      />
 
       <ScrollView style={styles.content}>
         {projects.length === 0 ? (
@@ -204,7 +207,7 @@ export default function ProjectSelectorScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#0f172a',
   },
   loadingContainer: {
     flex: 1,
@@ -214,49 +217,23 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#64748b',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-  },
-  backButton: {
-    padding: 8,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: '#667eea',
-    fontWeight: '600',
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1e293b',
-  },
-  placeholder: {
-    width: 60,
+    color: '#94a3b8',
   },
   content: {
     flex: 1,
     padding: 16,
   },
   infoBox: {
-    backgroundColor: '#eff6ff',
+    backgroundColor: 'rgba(212, 175, 55, 0.12)',
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#3b82f6',
+    borderLeftColor: '#D4AF37',
   },
   infoText: {
     fontSize: 14,
-    color: '#1e40af',
+    color: '#f8fafc',
     lineHeight: 20,
   },
   emptyContainer: {
@@ -270,42 +247,37 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: '#ffffff',
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 16,
-    color: '#64748b',
+    color: '#94a3b8',
     textAlign: 'center',
     marginBottom: 24,
   },
   createButton: {
-    backgroundColor: '#667eea',
+    backgroundColor: '#D4AF37',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   createButtonText: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   projectCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    borderColor: 'rgba(212,175,55,0.25)',
   },
   projectCardSelected: {
-    borderColor: '#667eea',
-    backgroundColor: '#f0f4ff',
+    borderColor: '#D4AF37',
+    backgroundColor: 'rgba(212,175,55,0.12)',
   },
   projectHeader: {
     marginBottom: 8,
@@ -324,28 +296,28 @@ const styles = StyleSheet.create({
   projectTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: '#ffffff',
     marginBottom: 4,
   },
   projectType: {
     fontSize: 14,
-    color: '#64748b',
+    color: '#D4AF37',
     textTransform: 'capitalize',
   },
   selectedBadge: {
-    backgroundColor: '#667eea',
+    backgroundColor: '#D4AF37',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
   },
   selectedBadgeText: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   projectDescription: {
     fontSize: 14,
-    color: '#475569',
+    color: '#cbd5e1',
     lineHeight: 20,
     marginBottom: 12,
   },
@@ -356,7 +328,7 @@ const styles = StyleSheet.create({
   },
   projectLocation: {
     fontSize: 14,
-    color: '#64748b',
+    color: '#94a3b8',
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -370,24 +342,24 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   createProjectCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(255,255,255,0.04)',
     borderRadius: 12,
     padding: 24,
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: '#e2e8f0',
+    borderColor: 'rgba(212,175,55,0.25)',
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
   },
   createProjectIcon: {
     fontSize: 48,
-    color: '#667eea',
+    color: '#D4AF37',
     marginBottom: 8,
   },
   createProjectText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#667eea',
+    fontWeight: '700',
+    color: '#D4AF37',
   },
 });

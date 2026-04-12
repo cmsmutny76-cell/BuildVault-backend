@@ -1,10 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
+import jwt from 'jsonwebtoken';
 import {
   listProjectDocuments,
   saveProjectDocument,
   type ProjectDocumentType,
 } from '../../../../../lib/services/projectDocumentService';
 import { getProjectById } from '../../../../../lib/services/projectService';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+function getAuthenticatedUserId(request: NextRequest): string | null {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.slice('Bearer '.length).trim();
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload & { userId?: string };
+    return typeof decoded.userId === 'string' ? decoded.userId : null;
+  } catch {
+    // Dev fallback token support from auth/login route
+    try {
+      const parsed = JSON.parse(Buffer.from(token, 'base64url').toString('utf8')) as {
+        userId?: string;
+        exp?: number;
+      };
+
+      if (typeof parsed.exp === 'number' && Date.now() > parsed.exp) {
+        return null;
+      }
+
+      return typeof parsed.userId === 'string' ? parsed.userId : null;
+    } catch {
+      return null;
+    }
+  }
+}
 
 function toTextValue(value: unknown): string {
   if (value === null || value === undefined) return 'N/A';
@@ -89,6 +122,11 @@ export async function GET(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const authenticatedUserId = getAuthenticatedUserId(request);
+    if (!authenticatedUserId) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { projectId } = await params;
     const type = request.nextUrl.searchParams.get('type') as ProjectDocumentType | null;
 
@@ -129,6 +167,11 @@ export async function POST(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const authenticatedUserId = getAuthenticatedUserId(request);
+    if (!authenticatedUserId) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { projectId } = await params;
     const body = await request.json();
 
@@ -144,9 +187,13 @@ export async function POST(
       );
     }
 
+    if (body.userId && body.userId !== authenticatedUserId) {
+      return NextResponse.json({ success: false, error: 'Forbidden: user mismatch' }, { status: 403 });
+    }
+
     const document = await saveProjectDocument({
       projectId,
-      createdByUserId: body.userId,
+      createdByUserId: authenticatedUserId,
       type: body.type,
       title: body.title,
       data: body.data,

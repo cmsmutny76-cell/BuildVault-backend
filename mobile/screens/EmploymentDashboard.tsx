@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Alert, Modal, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { Screen } from '../types/navigation';
+import MobileScreenHeader from '../components/MobileScreenHeader';
 
 interface JobListing {
   id: string;
@@ -23,7 +23,7 @@ interface JobListing {
 
 interface EmploymentDashboardProps {
   onBack: () => void;
-  onNavigate: (screen: Screen, params?: unknown) => void;
+  onNavigate: (screen: string, params?: any) => void;
 }
 
 export default function EmploymentDashboard({ onBack, onNavigate }: EmploymentDashboardProps) {
@@ -244,15 +244,13 @@ export default function EmploymentDashboard({ onBack, onNavigate }: EmploymentDa
       >
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onBack} style={styles.backButton}>
-              <Text style={styles.backButtonText}>← Back to Categories</Text>
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Job Opportunities</Text>
-            <Text style={styles.headerSubtitle}>
-              Find your next construction career opportunity
-            </Text>
-          </View>
+          <MobileScreenHeader
+            onBack={onBack}
+            backLabel="← Back to Categories"
+            title="Job Opportunities"
+            subtitle="Find your next construction career opportunity"
+            theme="dark"
+          />
 
           {/* Stats */}
           <View style={styles.statsCard}>
@@ -393,7 +391,11 @@ export default function EmploymentDashboard({ onBack, onNavigate }: EmploymentDa
             <Text style={styles.sectionTitle}>Companies Hiring Now</Text>
 
             <TouchableOpacity style={styles.companyCard}>
-              <Text style={styles.companyIcon}>🏗️</Text>
+              <Image
+                source={require('../assets/splash-icon.png')}
+                style={styles.brandCompanyIcon}
+                resizeMode="contain"
+              />
               <View style={styles.companyContent}>
                 <Text style={styles.companyName}>Premium Build Construction</Text>
                 <Text style={styles.companyJobs}>3 open positions</Text>
@@ -792,6 +794,11 @@ const styles = StyleSheet.create({
   },
   companyIcon: {
     fontSize: 28,
+    marginRight: 12,
+  },
+  brandCompanyIcon: {
+    width: 28,
+    height: 28,
     marginRight: 12,
   },
   companyContent: {

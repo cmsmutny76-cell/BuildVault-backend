@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { Screen } from '../types/navigation';
+import MobileScreenHeader from '../components/MobileScreenHeader';
 
 interface CategoryDashboardProps {
   category: 'multi-family' | 'apartment' | 'landscaping' | 'labor-pool' | 'employment' | 'developer' | 'food-service';
   onBack: () => void;
-  onNavigate: (screen: Screen) => void;
+  onNavigate: (screen: string) => void;
 }
 
 const categoryConfig = {
@@ -160,18 +160,13 @@ export default function CategoryDashboard({ category, onBack, onNavigate }: Cate
       >
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onBack} style={styles.backButton}>
-              <Text style={styles.backButtonText}>← Back to Categories</Text>
-            </TouchableOpacity>
-            <View style={styles.headerTitleRow}>
-              <Text style={styles.headerIcon}>{config.icon}</Text>
-              <View style={styles.headerTextContainer}>
-                <Text style={styles.headerTitle}>{config.title}</Text>
-                <Text style={styles.headerSubtitle}>{config.subtitle}</Text>
-              </View>
-            </View>
-          </View>
+          <MobileScreenHeader
+            onBack={onBack}
+            backLabel="← Back to Categories"
+            title={config.title}
+            subtitle={config.subtitle}
+            theme="dark"
+          />
 
           {/* Stats Overview */}
           <View style={styles.statsCard}>
@@ -197,12 +192,14 @@ export default function CategoryDashboard({ category, onBack, onNavigate }: Cate
                 key={index}
                 style={styles.actionCard}
                 onPress={() => {
-                  if (action.title.toLowerCase().includes('find')) {
+                  if (action.title.toLowerCase().includes('find') || action.title.toLowerCase().includes('hire') || action.title.toLowerCase().includes('browse')) {
                     onNavigate('contractorSearch');
-                  } else if (action.title.toLowerCase().includes('project')) {
+                  } else if (action.title.toLowerCase().includes('project') || action.title.toLowerCase().includes('new') || action.title.toLowerCase().includes('start') || action.title.toLowerCase().includes('post')) {
                     onNavigate('projectProfile');
+                  } else if (action.title.toLowerCase().includes('resume') || action.title.toLowerCase().includes('application') || action.title.toLowerCase().includes('job') || action.title.toLowerCase().includes('career')) {
+                    onNavigate('contractorSearch');
                   } else {
-                    Alert.alert('Coming Soon', action.description);
+                    onNavigate('photoAnalysis');
                   }
                 }}
               >

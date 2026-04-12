@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Alert, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { Screen } from '../types/navigation';
+import MobileScreenHeader from '../components/MobileScreenHeader';
 
 interface Worker {
   id: string;
@@ -24,7 +24,7 @@ interface Worker {
 
 interface LaborPoolDashboardProps {
   onBack: () => void;
-  onNavigate: (screen: Screen, params?: unknown) => void;
+  onNavigate: (screen: string, params?: any) => void;
 }
 
 export default function LaborPoolDashboard({ onBack, onNavigate }: LaborPoolDashboardProps) {
@@ -221,15 +221,13 @@ export default function LaborPoolDashboard({ onBack, onNavigate }: LaborPoolDash
       >
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onBack} style={styles.backButton}>
-              <Text style={styles.backButtonText}>← Back to Categories</Text>
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Labor Pool</Text>
-            <Text style={styles.headerSubtitle}>
-              Temp workers and day labor for immediate hire
-            </Text>
-          </View>
+          <MobileScreenHeader
+            onBack={onBack}
+            backLabel="← Back to Categories"
+            title="Labor Pool"
+            subtitle="Temp workers and day labor for immediate hire"
+            theme="dark"
+          />
 
           {/* Stats */}
           <View style={styles.statsCard}>
@@ -552,9 +550,8 @@ export default function LaborPoolDashboard({ onBack, onNavigate }: LaborPoolDash
                     style={[styles.modalButton, selectedWorker.availability !== 'available' && styles.modalButtonDisabled]}
                     onPress={() => {
                       if (selectedWorker.availability === 'available') {
-                        const workerId = selectedWorker.id;
                         setSelectedWorker(null);
-                        onNavigate('newEstimate', { contractorId: workerId });
+                        Alert.alert('Hire Worker', `Contact ${selectedWorker.name} for immediate hire`);
                       } else {
                         Alert.alert('Not Available', 'This worker is currently unavailable');
                       }
@@ -568,10 +565,8 @@ export default function LaborPoolDashboard({ onBack, onNavigate }: LaborPoolDash
                   <TouchableOpacity 
                     style={styles.modalButton}
                     onPress={() => {
-                      const workerId = selectedWorker.id;
-                      const workerName = selectedWorker.name;
                       setSelectedWorker(null);
-                      onNavigate('chat', { receiverId: workerId, contactName: workerName });
+                      Alert.alert('Message', `Send message to ${selectedWorker.name}`);
                     }}
                   >
                     <Text style={styles.modalButtonText}>Send Message</Text>

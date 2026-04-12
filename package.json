@@ -8,10 +8,12 @@
     "backend"
   ],
   "scripts": {
-    "build": "npm run build --workspace backend",
-    "start": "npm run start --workspace backend",
+    "dev": "npm run backend",
+    "web": "npm run backend",
     "mobile": "cd mobile && npm start",
     "backend": "cd backend && npm run dev",
+    "web:build": "cd backend && npm run build",
+    "web:start": "cd backend && npm run start",
     "backend:build": "cd backend && npm run build",
     "install:all": "npm install && cd mobile && npm install && cd ../backend && npm install"
   },

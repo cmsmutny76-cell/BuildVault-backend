@@ -33,6 +33,16 @@ export type UserProfile = {
   licenseNumber?: string;
   serviceAreas?: string[] | string;
   specialties?: string[] | string;
+  supplierCategories?: string[] | string;
+  supplierAudience?: WebUserType[] | string;
+  supplierVisibilityRestricted?: boolean;
+  supplierDescription?: string;
+  supplierSpecialServices?: string[] | string;
+  customOrderMaterials?: string[] | string;
+  catalogSheetUrls?: string[] | string;
+  leadTimeDetails?: string;
+  minimumOrderQuantities?: string;
+  fabricationCapabilities?: string;
   subscription?: {
     status?: string;
     trialEndsAt?: string;
@@ -45,6 +55,32 @@ export type UserProfile = {
 export type UserProfileResponse = {
   success: boolean;
   profile?: UserProfile;
+  error?: string;
+};
+
+export type SupplierDirectoryEntry = {
+  id: string;
+  businessName: string;
+  supplierDescription?: string;
+  city?: string;
+  state?: string;
+  phone?: string;
+  email: string;
+  supplierCategories: string[];
+  serviceAreas: string[];
+  supplierAudience: WebUserType[];
+  supplierSpecialServices: string[];
+  customOrderMaterials: string[];
+  catalogSheetUrls: string[];
+  leadTimeDetails?: string;
+  minimumOrderQuantities?: string;
+  fabricationCapabilities?: string;
+  supplierVisibilityRestricted?: boolean;
+};
+
+export type SupplierDirectoryResponse = {
+  success: boolean;
+  suppliers: SupplierDirectoryEntry[];
   error?: string;
 };
 
@@ -167,13 +203,75 @@ export type CreateEstimateResponse = {
   error?: string;
 };
 
+export type SchedulerProject = {
+  id: string;
+  name: string;
+  location: string;
+  startDate: string;
+  endDate: string;
+};
+
+export type SchedulerTaskStatus = 'not-started' | 'in-progress' | 'blocked' | 'completed';
+export type SchedulerTaskPriority = 'low' | 'medium' | 'high' | 'critical';
+
+export type SchedulerTask = {
+  id: string;
+  projectId: string;
+  title: string;
+  phase: string;
+  assignee: string;
+  startDate: string;
+  endDate: string;
+  baselineStartDate: string;
+  baselineEndDate: string;
+  predecessorIds: string[];
+  crewCount: number;
+  equipmentUnits: number;
+  status: SchedulerTaskStatus;
+  progress: number;
+  priority: SchedulerTaskPriority;
+  isMilestone: boolean;
+  notes: string;
+  taskSequence?: number;
+  constraintType?: 'none' | 'rfi' | 'submittal' | 'inspection' | 'materials' | 'weather' | 'other';
+  constraintNote?: string;
+  weatherDelayDays?: number;
+  weatherCondition?: string;
+  dailyLog?: string;
+  lastFieldUpdateAt?: string;
+};
+
+export type SchedulerState = {
+  projects: SchedulerProject[];
+  tasks: SchedulerTask[];
+};
+
+export type SchedulerStateResponse = {
+  success: boolean;
+  state: SchedulerState;
+  error?: string;
+};
+
 async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  let token: string | null = null;
+  if (typeof window !== 'undefined') {
+    token =
+      window.localStorage.getItem('buildvault.authToken') ||
+      window.sessionStorage.getItem('buildvault.authToken') ||
+      null;
+  }
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string> || {}),
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const response = await fetch(path, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
+    headers,
     cache: 'no-store',
   });
 
@@ -198,6 +296,11 @@ export const webApi = {
   },
   getProfile(userId: string) {
     return apiRequest<UserProfileResponse>(`/api/users/profile?userId=${encodeURIComponent(userId)}`, {
+      method: 'GET',
+    });
+  },
+  getSuppliers(viewerType: WebUserType) {
+    return apiRequest<SupplierDirectoryResponse>(`/api/users/suppliers?viewerType=${encodeURIComponent(viewerType)}`, {
       method: 'GET',
     });
   },
@@ -282,6 +385,17 @@ export const webApi = {
     return apiRequest<{ success: boolean; message?: string; error?: string }>('/api/quotes/reject', {
       method: 'POST',
       body: JSON.stringify(input),
+    });
+  },
+  getSchedulerState(userId: string) {
+    return apiRequest<SchedulerStateResponse>(`/api/scheduler?userId=${encodeURIComponent(userId)}`, {
+      method: 'GET',
+    });
+  },
+  saveSchedulerState(userId: string, state: SchedulerState) {
+    return apiRequest<SchedulerStateResponse>('/api/scheduler', {
+      method: 'PUT',
+      body: JSON.stringify({ userId, state }),
     });
   },
 };

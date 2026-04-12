@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
+
 interface EmailVerificationScreenProps {
   email: string;
   onNavigateToLogin: () => void;
@@ -36,7 +38,7 @@ const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = ({
     setResending(true);
 
     try {
-      const response = await fetch('http://localhost:3000/api/auth/verify-email', {
+      const response = await fetch(`${API_BASE_URL}/auth/verify-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),

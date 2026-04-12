@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { clearAuthSession, getAuthToken, getAuthUser, type AuthUser } from "../../lib/web/authStorage";
 import { moderateProjectPost } from "../../lib/web/postModeration";
+import WebBrandMark from "../../components/WebBrandMark";
 
 const PROJECT_CATEGORIES: Array<{
   value: string;
@@ -248,8 +249,8 @@ export default function FeedPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-black/45 px-6 py-10 text-zinc-100">
-        <div className="mx-auto max-w-4xl rounded-lg border border-zinc-200 bg-white p-6 text-zinc-900">
+      <div className="min-h-screen bg-black/55 px-6 py-10 text-zinc-100">
+        <div className="mx-auto max-w-4xl rounded-lg border border-amber-300/20 bg-slate-950/75 p-6 text-zinc-100 backdrop-blur-sm">
           Loading...
         </div>
       </div>
@@ -257,111 +258,119 @@ export default function FeedPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black/45 px-6 py-10 text-zinc-100">
+    <div className="min-h-screen bg-black/55 px-6 py-10 text-zinc-100">
       <main className="mx-auto w-full max-w-4xl flex-col gap-6">
         {/* Top Navigation */}
-        <section className="mb-6 rounded-lg border border-zinc-200 bg-white p-4 text-zinc-900">
+        <section className="relative z-[1000] mb-6 overflow-visible rounded-lg border border-amber-300/20 bg-slate-950/75 p-4 text-zinc-100 backdrop-blur-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-6">
+              <WebBrandMark href="/dashboard" textClassName="text-white" />
               <Link
                 href="/dashboard"
-                className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                className="text-sm font-semibold text-amber-300 hover:text-amber-200"
               >
                 Dashboard
               </Link>
               <Link
                 href="/categories"
-                className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                className="text-sm font-semibold text-amber-300 hover:text-amber-200"
               >
                 Categories
               </Link>
               <Link
                 href="/messages"
-                className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                className="text-sm font-semibold text-amber-300 hover:text-amber-200"
               >
                 Messages
               </Link>
             </div>
 
             {/* User Dropdown Menu */}
-            <div className="relative">
+            <div className="relative z-[1100]">
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
-                className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+                className="rounded-md border border-amber-300/25 bg-slate-900/80 px-3 py-2 text-sm text-zinc-100 hover:bg-slate-800"
               >
                 ☰
               </button>
 
               {menuOpen && (
-                <div className="absolute right-0 mt-2 w-48 rounded-md border border-zinc-300 bg-white text-zinc-900 shadow-lg">
+                <div className="absolute right-0 z-[1200] mt-2 w-56 rounded-md border border-amber-300/20 bg-slate-950/95 text-zinc-100 shadow-lg backdrop-blur-sm">
                   <div>
                     <Link
                       href="/profile"
-                      className="block w-full px-4 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       👤 Profile
                     </Link>
                     <Link
                       href="/photo-analysis"
-                      className="block w-full px-4 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       📸 Photo Analysis
                     </Link>
                     <Link
                       href="/blueprint-analysis"
-                      className="block w-full px-4 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       📐 Blueprint Analysis
                     </Link>
                     <Link
                       href="/building-codes"
-                      className="block w-full px-4 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       🏛️ Building Codes
                     </Link>
                     <Link
                       href="/price-comparison"
-                      className="block w-full px-4 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       💰 Price Comparison
                     </Link>
                     <Link
                       href="/find-contractors"
-                      className="block w-full px-4 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       👷 Find Contractors
                     </Link>
                     <Link
                       href="/permit-assistance"
-                      className="block w-full px-4 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       📋 Permit Assistance
                     </Link>
+                      <Link
+                        href="/project-scheduling"
+                        className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        Project Scheduling
+                      </Link>
                     <Link
                       href="/settings"
-                      className="block w-full px-4 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       ⚙️ Settings
                     </Link>
-                    <div className="border-t border-zinc-200"></div>
+                    <div className="border-t border-white/10"></div>
                     <Link
                       href="/help"
-                      className="block w-full px-4 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-slate-800"
                       onClick={() => setMenuOpen(false)}
                     >
                       ℹ️ Help & Support
                     </Link>
-                    <div className="border-t border-zinc-200"></div>
+                    <div className="border-t border-white/10"></div>
                     <button
-                      className="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-zinc-100"
+                      className="block w-full px-4 py-2 text-left text-sm text-red-300 hover:bg-slate-800"
                       onClick={handleSignOut}
                     >
                       Sign Out
@@ -374,9 +383,9 @@ export default function FeedPage() {
         </section>
 
         {/* Project Feed Section */}
-        <section className="rounded-lg border border-zinc-200 bg-white p-6 text-zinc-900">
-          <h1 className="text-2xl font-bold text-zinc-900">Project Feed</h1>
-          <p className="mt-1 text-sm text-zinc-600">
+        <section className="rounded-lg border border-amber-300/20 bg-slate-950/75 p-6 text-zinc-100 backdrop-blur-sm">
+          <h1 className="text-2xl font-bold text-white">Project Feed</h1>
+          <p className="mt-1 text-sm text-slate-300">
             Post project opportunities for the community. Only project-related and professional posts are allowed.
           </p>
 
@@ -394,13 +403,13 @@ export default function FeedPage() {
 
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900"
+              className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100"
               placeholder="Post title"
               value={postTitle}
               onChange={(event) => setPostTitle(event.target.value)}
             />
             <select
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900"
+              className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100"
               value={postCategory}
               onChange={(event) => setPostCategory(event.target.value)}
             >
@@ -411,20 +420,20 @@ export default function FeedPage() {
               ))}
             </select>
             <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900"
+              className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100"
               placeholder="Location (City, State)"
               value={postLocation}
               onChange={(event) => setPostLocation(event.target.value)}
             />
             <button
-              className="rounded-md bg-zinc-900 px-3 py-2 text-sm text-white"
+              className="rounded-md bg-amber-300 px-3 py-2 text-sm font-semibold text-slate-950"
               type="button"
               onClick={handleCreateFeedPost}
             >
               Publish Post
             </button>
             <textarea
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 sm:col-span-2"
+              className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100 sm:col-span-2"
               placeholder="Describe the project scope, timeline, and contractor needs"
               value={postDescription}
               onChange={(event) => setPostDescription(event.target.value)}
@@ -434,7 +443,7 @@ export default function FeedPage() {
 
           <div className="mt-5 grid gap-2 sm:grid-cols-3">
             <select
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900"
+              className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100"
               value={feedCategoryFilter}
               onChange={(event) => setFeedCategoryFilter(event.target.value)}
             >
@@ -446,13 +455,13 @@ export default function FeedPage() {
               ))}
             </select>
             <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900"
+              className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100"
               placeholder="Filter by location"
               value={feedLocationFilter}
               onChange={(event) => setFeedLocationFilter(event.target.value)}
             />
             <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900"
+              className="rounded-md border border-amber-300/20 bg-slate-900/90 px-3 py-2 text-sm text-zinc-100"
               placeholder="Search feed"
               value={feedQuery}
               onChange={(event) => setFeedQuery(event.target.value)}
@@ -460,7 +469,7 @@ export default function FeedPage() {
           </div>
 
           {filteredFeedPosts.length === 0 ? (
-            <p className="mt-4 text-sm text-zinc-600">No posts match current filters.</p>
+            <p className="mt-4 text-sm text-slate-300">No posts match current filters.</p>
           ) : (
             <ul className="mt-4 space-y-3">
               {filteredFeedPosts.map((post) => {
@@ -468,18 +477,18 @@ export default function FeedPage() {
                   PROJECT_CATEGORIES.find((category) => category.value === post.category)?.label || post.category;
 
                 return (
-                  <li key={post.id} className="rounded-md border border-zinc-200 p-3 text-zinc-900">
+                  <li key={post.id} className="rounded-md border border-white/10 bg-white/5 p-3 text-zinc-100">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-sm text-zinc-500">{post.authorName}</div>
+                        <div className="text-sm text-slate-400">{post.authorName}</div>
                         <div className="text-lg font-semibold">{post.title}</div>
                       </div>
-                      <div className="text-xs text-zinc-500">{new Date(post.createdAt).toLocaleString()}</div>
+                      <div className="text-xs text-slate-400">{new Date(post.createdAt).toLocaleString()}</div>
                     </div>
-                    <div className="mt-2 text-sm text-zinc-700">{post.description}</div>
+                    <div className="mt-2 text-sm text-slate-200">{post.description}</div>
                     <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                      <span className="rounded-full bg-zinc-100 px-2 py-1 text-zinc-700">{categoryLabel}</span>
-                      <span className="rounded-full bg-zinc-100 px-2 py-1 text-zinc-700">{post.location}</span>
+                      <span className="rounded-full bg-amber-300/15 px-2 py-1 text-amber-200">{categoryLabel}</span>
+                      <span className="rounded-full bg-white/10 px-2 py-1 text-slate-200">{post.location}</span>
                     </div>
                   </li>
                 );

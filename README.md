@@ -102,6 +102,20 @@ psql -U postgres -d construction_leads -f database/schema.sql
 
 ## 🚀 Running the Application
 
+### Start BuildVault Internet Platform (Web)
+
+From the repository root:
+
+```bash
+npm run dev
+# or
+npm run web
+# or
+npm run backend
+```
+
+Internet platform runs on: http://localhost:3000
+
 ### Start Backend (Next.js API)
 
 ```bash
@@ -111,6 +125,8 @@ cd backend && npm run dev
 ```
 
 Backend runs on: http://localhost:3000
+
+> Note: `buildvault-start-app.bat` and `buildvault-open-app.html` launch Expo web on port 8081 for the mobile app shell, not the BuildVault internet platform.
 
 ### Start Mobile App (Expo)
 

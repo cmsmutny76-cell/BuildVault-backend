@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   View,
   Text,
   TextInput,
@@ -8,68 +9,174 @@ import {
   SafeAreaView,
   ScrollView,
   Alert,
-  Switch,
 } from 'react-native';
+import type { MobileUserType } from '../services/api';
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
+
+type AccountOption = {
+  userType: MobileUserType;
+  label: string;
+  description: string;
+  priceLabel: string;
+  priceValue: number;
+  group: 'free' | 'pro49' | 'pro99';
+};
+
+const ACCOUNT_OPTIONS: AccountOption[] = [
+  {
+    userType: 'homeowner',
+    label: 'Homeowner',
+    description: 'I need construction work done',
+    priceLabel: 'Free',
+    priceValue: 0,
+    group: 'free',
+  },
+  {
+    userType: 'employment_seeker',
+    label: 'Employment Seeker',
+    description: 'I am looking for work opportunities',
+    priceLabel: 'Free',
+    priceValue: 0,
+    group: 'free',
+  },
+  {
+    userType: 'supplier',
+    label: 'Supplier',
+    description: 'I supply materials, products, or jobsite deliveries',
+    priceLabel: 'Free',
+    priceValue: 0,
+    group: 'free',
+  },
+  {
+    userType: 'contractor',
+    label: 'Contractor',
+    description: 'I provide construction services',
+    priceLabel: '$49.99/month',
+    priceValue: 49.99,
+    group: 'pro49',
+  },
+  {
+    userType: 'landscaper',
+    label: 'Landscaper',
+    description: 'I provide landscaping and outdoor services',
+    priceLabel: '$49.99/month',
+    priceValue: 49.99,
+    group: 'pro49',
+  },
+  {
+    userType: 'school',
+    label: 'Trade School',
+    description: 'We train students for skilled trade careers',
+    priceLabel: '$49.99/month',
+    priceValue: 49.99,
+    group: 'pro49',
+  },
+  {
+    userType: 'commercial_builder',
+    label: 'Commercial Builder',
+    description: 'We build commercial projects and facilities',
+    priceLabel: '$99.99/month',
+    priceValue: 99.99,
+    group: 'pro99',
+  },
+  {
+    userType: 'multi_family_owner',
+    label: 'Multi-Family Owner',
+    description: 'We manage condos, duplexes, and multi-unit properties',
+    priceLabel: '$99.99/month',
+    priceValue: 99.99,
+    group: 'pro99',
+  },
+  {
+    userType: 'apartment_owner',
+    label: 'Apartment Owner',
+    description: 'We manage apartment communities and portfolios',
+    priceLabel: '$99.99/month',
+    priceValue: 99.99,
+    group: 'pro99',
+  },
+  {
+    userType: 'developer',
+    label: 'Developer',
+    description: 'We develop residential, commercial, or mixed-use projects',
+    priceLabel: '$99.99/month',
+    priceValue: 99.99,
+    group: 'pro99',
+  },
+];
+
+const ACCOUNT_GROUPS: Array<{ key: AccountOption['group']; title: string; subtitle: string }> = [
+  { key: 'free', title: 'Free Access', subtitle: 'Homeowners, job seekers, and suppliers' },
+  { key: 'pro49', title: '$49.99 / Month', subtitle: 'Field services and career partners' },
+  { key: 'pro99', title: '$99.99 / Month', subtitle: 'Commercial and portfolio operators' },
+];
 
 interface RegisterScreenProps {
-  onRegister: (user: { id: string; email: string; isContractor: boolean }) => void;
   onNavigateToLogin: () => void;
-  onNavigateToEmailVerification: (email: string) => void;
 }
 
-export default function RegisterScreen({ onRegister, onNavigateToLogin, onNavigateToEmailVerification }: RegisterScreenProps) {
+export default function RegisterScreen({ onNavigateToLogin }: RegisterScreenProps) {
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
+    fullName: '',
     email: '',
     password: '',
-    confirmPassword: '',
-    phone: '',
-    isContractor: false,
+    userType: 'homeowner' as MobileUserType,
   });
+  const [step, setStep] = useState<1 | 2>(1);
   const [loading, setLoading] = useState(false);
 
+  const selectedAccount = useMemo(
+    () => ACCOUNT_OPTIONS.find((option) => option.userType === formData.userType) ?? ACCOUNT_OPTIONS[0],
+    [formData.userType]
+  );
+
   const handleRegister = async () => {
-    // Validation
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password) {
-      Alert.alert('Error', 'Please fill in all required fields');
+    if (step === 1) {
+      if (!formData.fullName.trim()) {
+        Alert.alert('Missing Information', 'Please enter your full name.');
+        return;
+      }
+      setStep(2);
       return;
     }
 
-    if (formData.password !== formData.confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+    if (!formData.email || !formData.password) {
+      Alert.alert('Missing Information', 'Please provide your email and password.');
       return;
     }
 
-    if (formData.password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+    if (formData.password.length < 8) {
+      Alert.alert('Error', 'Password must be at least 8 characters');
       return;
     }
 
     setLoading(true);
 
     try {
-      // TODO: Call /api/users/register endpoint
-      const response = await fetch('http://localhost:3000/api/users/register', {
+      const [firstName, ...rest] = formData.fullName.trim().split(/\s+/);
+      const lastName = rest.join(' ') || 'User';
+
+      const response = await fetch(`${API_BASE_URL}/users/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          firstName,
+          lastName,
           email: formData.email,
           password: formData.password,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          phone: formData.phone,
-          userType: formData.isContractor ? 'contractor' : 'homeowner',
+          userType: formData.userType,
         }),
       });
 
       const data = await response.json();
 
       if (response.ok && data.success) {
-        // Navigate to email verification screen
-        onNavigateToEmailVerification(formData.email);
+        Alert.alert('Success', data.message || 'Account created successfully. Please verify your email.', [
+          { text: 'OK', onPress: onNavigateToLogin },
+        ]);
       } else {
         Alert.alert('Registration Failed', data.error || 'Please try again');
       }
@@ -88,118 +195,111 @@ export default function RegisterScreen({ onRegister, onNavigateToLogin, onNaviga
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.logo}>🏗️</Text>
+          <Text style={styles.logo}>BuildVault</Text>
           <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join LeadGen Pro today</Text>
+          <Text style={styles.subtitle}>{step === 1 ? 'Tell us about yourself' : 'Set up your credentials'}</Text>
         </View>
 
         <View style={styles.form}>
-          {/* Account Type Toggle */}
-          <View style={styles.toggleSection}>
-            <View style={styles.toggleInfo}>
-              <Text style={styles.toggleLabel}>
-                {formData.isContractor ? '👷 Contractor Account' : '👤 Homeowner Account'}
-              </Text>
-              <Text style={styles.toggleSubtext}>
-                {formData.isContractor
-                  ? 'Get leads and manage projects'
-                  : 'Find contractors and get estimates'}
-              </Text>
-            </View>
-            <Switch
-              value={formData.isContractor}
-              onValueChange={(value) => updateField('isContractor', value)}
-              trackColor={{ false: '#cbd5e1', true: '#93c5fd' }}
-              thumbColor={formData.isContractor ? '#3b82f6' : '#f1f5f9'}
-            />
-          </View>
+          {step === 1 ? (
+            <>
+              <Text style={styles.label}>Choose account type:</Text>
+              {ACCOUNT_GROUPS.map((group) => (
+                <View key={group.key} style={styles.groupCard}>
+                  <Text style={styles.groupTitle}>{group.title}</Text>
+                  <Text style={styles.groupSubtitle}>{group.subtitle}</Text>
+                  <View style={styles.optionGrid}>
+                    {ACCOUNT_OPTIONS.filter((option) => option.group === group.key).map((option) => {
+                      const isSelected = option.userType === formData.userType;
+                      return (
+                        <TouchableOpacity
+                          key={option.userType}
+                          style={[styles.accountCard, isSelected && styles.accountCardSelected]}
+                          onPress={() => updateField('userType', option.userType)}
+                        >
+                          <View style={styles.accountRow}>
+                            <View style={styles.accountTextWrap}>
+                              <Text style={styles.accountLabel}>{option.label}</Text>
+                              <Text style={styles.accountDescription}>{option.description}</Text>
+                            </View>
+                            <View style={[styles.pricePill, isSelected && styles.pricePillSelected]}>
+                              <Text style={[styles.pricePillText, isSelected && styles.pricePillTextSelected]}>{option.priceLabel}</Text>
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              ))}
 
-          {formData.isContractor && (
-            <View style={styles.trialBanner}>
-              <Text style={styles.trialText}>🎉 30-Day Free Trial Included!</Text>
-              <Text style={styles.trialSubtext}>Then $49.99/month</Text>
-            </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Full Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.fullName}
+                  onChangeText={(text) => updateField('fullName', text)}
+                  placeholder="John Doe"
+                  autoCapitalize="words"
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.registerButton, !formData.fullName.trim() && styles.registerButtonDisabled]}
+                onPress={handleRegister}
+                disabled={!formData.fullName.trim()}
+              >
+                <Text style={styles.registerButtonText}>Continue</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <View style={styles.selectedSummaryCard}>
+                <Text style={styles.selectedSummaryText}>{formData.fullName} • {selectedAccount.label}</Text>
+                <Text style={[styles.selectedPriceText, selectedAccount.priceValue === 0 ? styles.selectedPriceFree : styles.selectedPricePaid]}>
+                  {selectedAccount.priceLabel}
+                </Text>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Email Address</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.email}
+                  onChangeText={(text) => updateField('email', text)}
+                  placeholder="you@example.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Password</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.password}
+                  onChangeText={(text) => updateField('password', text)}
+                  placeholder="At least 8 characters"
+                  secureTextEntry
+                  autoCapitalize="none"
+                />
+                <Text style={styles.passwordHint}>At least 8 characters</Text>
+              </View>
+
+              <View style={styles.buttonRow}>
+                <TouchableOpacity style={styles.backStepButton} onPress={() => setStep(1)}>
+                  <Text style={styles.backStepButtonText}>Back</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.registerButton, styles.registerButtonInline, loading && styles.registerButtonDisabled]}
+                  onPress={handleRegister}
+                  disabled={loading || !formData.email || !formData.password}
+                >
+                  {loading ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.registerButtonText}>Create Account</Text>}
+                </TouchableOpacity>
+              </View>
+            </>
           )}
-
-          <View style={styles.row}>
-            <View style={styles.halfWidth}>
-              <Text style={styles.label}>First Name *</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.firstName}
-                onChangeText={(text) => updateField('firstName', text)}
-                placeholder="John"
-              />
-            </View>
-
-            <View style={styles.halfWidth}>
-              <Text style={styles.label}>Last Name *</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.lastName}
-                onChangeText={(text) => updateField('lastName', text)}
-                placeholder="Doe"
-              />
-            </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email *</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.email}
-              onChangeText={(text) => updateField('email', text)}
-              placeholder="your@email.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Phone</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.phone}
-              onChangeText={(text) => updateField('phone', text)}
-              placeholder="(555) 123-4567"
-              keyboardType="phone-pad"
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password *</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.password}
-              onChangeText={(text) => updateField('password', text)}
-              placeholder="At least 6 characters"
-              secureTextEntry
-              autoCapitalize="none"
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Confirm Password *</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.confirmPassword}
-              onChangeText={(text) => updateField('confirmPassword', text)}
-              placeholder="Re-enter password"
-              secureTextEntry
-              autoCapitalize="none"
-            />
-          </View>
-
-          <TouchableOpacity
-            style={[styles.registerButton, loading && styles.registerButtonDisabled]}
-            onPress={handleRegister}
-            disabled={loading}
-          >
-            <Text style={styles.registerButtonText}>
-              {loading ? 'Creating Account...' : 'Create Account'}
-            </Text>
-          </TouchableOpacity>
 
           <TouchableOpacity style={styles.loginLink} onPress={onNavigateToLogin}>
             <Text style={styles.loginLinkText}>
@@ -215,117 +315,191 @@ export default function RegisterScreen({ onRegister, onNavigateToLogin, onNaviga
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#111827',
   },
   scrollContent: {
     flexGrow: 1,
     padding: 20,
-    paddingTop: 40,
+    paddingTop: 24,
   },
   header: {
-    alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
   },
   logo: {
-    fontSize: 56,
-    marginBottom: 12,
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#f8fafc',
+    marginBottom: 10,
   },
   title: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: '800',
-    color: '#0f172a',
-    marginBottom: 6,
+    color: '#ffffff',
+    marginBottom: 4,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 15,
-    color: '#64748b',
+    color: '#9ca3af',
   },
   form: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1f2937',
     borderRadius: 16,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#374151',
     marginBottom: 40,
   },
-  toggleSection: {
+  groupCard: {
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#374151',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+  },
+  groupTitle: {
+    color: '#f3f4f6',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  groupSubtitle: {
+    color: '#9ca3af',
+    fontSize: 12,
+    marginBottom: 10,
+    marginTop: 2,
+  },
+  optionGrid: {
+    gap: 8,
+  },
+  accountCard: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#374151',
+    backgroundColor: '#1f2937',
+    padding: 12,
+  },
+  accountCardSelected: {
+    borderColor: '#f97316',
+    backgroundColor: '#7c2d12',
+  },
+  accountRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    backgroundColor: '#f8fafc',
-    borderRadius: 12,
-    marginBottom: 20,
+    alignItems: 'flex-start',
+    gap: 10,
   },
-  toggleInfo: {
+  accountTextWrap: {
     flex: 1,
   },
-  toggleLabel: {
-    fontSize: 17,
+  accountLabel: {
+    color: '#ffffff',
+    fontSize: 14,
     fontWeight: '700',
-    color: '#0f172a',
-    marginBottom: 4,
-  },
-  toggleSubtext: {
-    fontSize: 13,
-    color: '#64748b',
-  },
-  trialBanner: {
-    backgroundColor: '#f0fdf4',
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#86efac',
-  },
-  trialText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#065f46',
     marginBottom: 2,
   },
-  trialSubtext: {
-    fontSize: 13,
-    color: '#047857',
+  accountDescription: {
+    color: '#d1d5db',
+    fontSize: 12,
   },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
+  pricePill: {
+    borderRadius: 999,
+    backgroundColor: '#374151',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  halfWidth: {
-    flex: 1,
+  pricePillSelected: {
+    backgroundColor: '#f97316',
+  },
+  pricePillText: {
+    color: '#d1d5db',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  pricePillTextSelected: {
+    color: '#ffffff',
   },
   inputGroup: {
-    marginBottom: 20,
+    marginTop: 8,
+    marginBottom: 12,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#334155',
+    color: '#e5e7eb',
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#111827',
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: '#4b5563',
     borderRadius: 10,
     padding: 14,
     fontSize: 15,
-    color: '#0f172a',
+    color: '#f9fafb',
+  },
+  selectedSummaryCard: {
+    borderWidth: 1,
+    borderColor: '#4b5563',
+    backgroundColor: '#111827',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+  },
+  selectedSummaryText: {
+    color: '#e5e7eb',
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  selectedPriceText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  selectedPriceFree: {
+    color: '#6ee7b7',
+  },
+  selectedPricePaid: {
+    color: '#fdba74',
+  },
+  passwordHint: {
+    color: '#9ca3af',
+    fontSize: 12,
+    marginTop: 6,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 6,
+  },
+  backStepButton: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#4b5563',
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+  },
+  backStepButtonText: {
+    color: '#f3f4f6',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  registerButtonInline: {
+    flex: 1,
+    marginTop: 0,
   },
   registerButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#ea580c',
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 10,
-    shadowColor: '#3b82f6',
+    shadowColor: '#ea580c',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -336,9 +510,8 @@ const styles = StyleSheet.create({
   },
   registerButtonText: {
     color: '#ffffff',
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
-    letterSpacing: 0.5,
   },
   loginLink: {
     marginTop: 20,
@@ -346,10 +519,10 @@ const styles = StyleSheet.create({
   },
   loginLinkText: {
     fontSize: 15,
-    color: '#64748b',
+    color: '#9ca3af',
   },
   loginLinkBold: {
-    color: '#3b82f6',
+    color: '#fb923c',
     fontWeight: '700',
   },
 });

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, TextInput, Alert, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { Screen } from '../types/navigation';
+import MobileScreenHeader from '../components/MobileScreenHeader';
 
 interface Property {
   id: string;
@@ -15,7 +15,7 @@ interface Property {
 
 interface CommercialDashboardProps {
   onBack: () => void;
-  onNavigate: (screen: Screen) => void;
+  onNavigate: (screen: string) => void;
 }
 
 export default function CommercialDashboard({ onBack, onNavigate }: CommercialDashboardProps) {
@@ -74,15 +74,13 @@ export default function CommercialDashboard({ onBack, onNavigate }: CommercialDa
       >
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onBack} style={styles.backButton}>
-              <Text style={styles.backButtonText}>← Back to Categories</Text>
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Commercial Projects</Text>
-            <Text style={styles.headerSubtitle}>
-              Manage office, retail, and commercial construction projects
-            </Text>
-          </View>
+          <MobileScreenHeader
+            onBack={onBack}
+            backLabel="← Back to Categories"
+            title="Commercial Projects"
+            subtitle="Manage office, retail, and commercial construction projects"
+            theme="dark"
+          />
 
           {/* Stats Overview */}
           <View style={styles.statsCard}>
@@ -152,7 +150,7 @@ export default function CommercialDashboard({ onBack, onNavigate }: CommercialDa
 
                 <TouchableOpacity 
                   style={styles.viewButton}
-                  onPress={() => Alert.alert('Property Details', 'Full property management coming soon!')}
+                  onPress={() => onNavigate('projectProfile')}
                 >
                   <Text style={styles.viewButtonText}>View Details →</Text>
                 </TouchableOpacity>
@@ -181,7 +179,11 @@ export default function CommercialDashboard({ onBack, onNavigate }: CommercialDa
               style={styles.actionCard}
               onPress={() => onNavigate('contractorSearch')}
             >
-              <Text style={styles.actionIcon}>🏗️</Text>
+              <Image
+                source={require('../assets/splash-icon.png')}
+                style={styles.brandIcon}
+                resizeMode="contain"
+              />
               <View style={styles.actionContent}>
                 <Text style={styles.actionTitle}>Find Commercial Contractors</Text>
                 <Text style={styles.actionDescription}>
@@ -192,7 +194,7 @@ export default function CommercialDashboard({ onBack, onNavigate }: CommercialDa
 
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => Alert.alert('Coming Soon', 'Permit assistance for commercial projects')}
+              onPress={() => onNavigate('buildingCodes')}
             >
               <Text style={styles.actionIcon}>📄</Text>
               <View style={styles.actionContent}>
@@ -205,7 +207,7 @@ export default function CommercialDashboard({ onBack, onNavigate }: CommercialDa
 
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => Alert.alert('Coming Soon', 'Project timeline planning tools')}
+              onPress={() => onNavigate('projectProfile')}
             >
               <Text style={styles.actionIcon}>📅</Text>
               <View style={styles.actionContent}>
@@ -457,6 +459,11 @@ const styles = StyleSheet.create({
   },
   actionIcon: {
     fontSize: 32,
+    marginRight: 15,
+  },
+  brandIcon: {
+    width: 32,
+    height: 32,
     marginRight: 15,
   },
   actionContent: {

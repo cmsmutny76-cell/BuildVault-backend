@@ -7,47 +7,28 @@ import {
   ScrollView,
   Switch,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
-import api from '../services/api';
+import MobileScreenHeader from '../components/MobileScreenHeader';
 
 interface SettingsScreenProps {
   onBack: () => void;
   onLogout: () => void;
-  currentUserId?: string;
-  isContractor?: boolean;
 }
 
-export default function SettingsScreen({ onBack, onLogout, currentUserId, isContractor }: SettingsScreenProps) {
+export default function SettingsScreen({ onBack, onLogout }: SettingsScreenProps) {
   const [notifications, setNotifications] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [autoSave, setAutoSave] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
-  const [availability, setAvailability] = useState<'available' | 'busy' | 'booked'>('available');
-
-  const handleSetAvailability = async (nextAvailability: 'available' | 'busy' | 'booked') => {
-    setAvailability(nextAvailability);
-
-    try {
-      if (!currentUserId || !isContractor) {
-        Alert.alert('Availability update', 'Availability is only available for contractor accounts.');
-        return;
-      }
-
-      await api.contractor.setAvailability(currentUserId, nextAvailability);
-    } catch (error) {
-      Alert.alert('Availability update', 'Unable to sync availability right now.');
-    }
-  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Settings</Text>
-      </View>
+      <MobileScreenHeader
+        onBack={onBack}
+        backLabel="← Back"
+        title="Settings"
+        subtitle="Manage preferences and notifications"
+        theme="dark"
+      />
 
       <ScrollView style={styles.content}>
         {/* Notifications Section */}
@@ -103,43 +84,7 @@ export default function SettingsScreen({ onBack, onLogout, currentUserId, isCont
               thumbColor={autoSave ? '#007AFF' : '#f4f3f4'}
             />
           </View>
-
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Dark Mode</Text>
-              <Text style={styles.settingDescription}>
-                Use dark theme (coming soon)
-              </Text>
-            </View>
-            <Switch
-              value={darkMode}
-              onValueChange={setDarkMode}
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={darkMode ? '#007AFF' : '#f4f3f4'}
-              disabled
-            />
-          </View>
         </View>
-
-        {isContractor && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Contractor Availability</Text>
-            <Text style={styles.settingDescription}>Current status influences AI matching results.</Text>
-            <View style={styles.availabilityRow}>
-              {(['available', 'busy', 'booked'] as const).map((status) => (
-                <TouchableOpacity
-                  key={status}
-                  style={[styles.availabilityChip, availability === status && styles.availabilityChipActive]}
-                  onPress={() => handleSetAvailability(status)}
-                >
-                  <Text style={[styles.availabilityChipText, availability === status && styles.availabilityChipTextActive]}>
-                    {status}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
 
         {/* Account Section */}
         <View style={styles.section}>
@@ -184,7 +129,7 @@ export default function SettingsScreen({ onBack, onLogout, currentUserId, isCont
         {/* App Info */}
         <View style={styles.appInfo}>
           <Text style={styles.appVersion}>Version 1.0.0</Text>
-          <Text style={styles.appCopyright}>© 2026 Construction Lead App</Text>
+          <Text style={styles.appCopyright}>© 2026 BuildVault</Text>
         </View>
 
         {/* Logout Button */}
@@ -199,56 +144,25 @@ export default function SettingsScreen({ onBack, onLogout, currentUserId, isCont
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  header: {
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  backButton: {
-    marginBottom: 10,
-  },
-  backButtonText: {
-    color: '#3b82f6',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#0f172a',
-    letterSpacing: -0.5,
+    backgroundColor: '#0f172a',
   },
   content: {
     flex: 1,
   },
   section: {
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(255,255,255,0.05)',
     marginTop: 20,
     marginHorizontal: 16,
     paddingHorizontal: 20,
     paddingVertical: 18,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
+    borderColor: 'rgba(212,175,55,0.22)',
   },
   sectionTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#64748b',
+    color: '#D4AF37',
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 16,
@@ -259,7 +173,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: 'rgba(212,175,55,0.12)',
   },
   settingInfo: {
     flex: 1,
@@ -268,12 +182,12 @@ const styles = StyleSheet.create({
   settingLabel: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#333',
+    color: '#ffffff',
     marginBottom: 4,
   },
   settingDescription: {
     fontSize: 13,
-    color: '#666',
+    color: '#94a3b8',
   },
   actionRow: {
     flexDirection: 'row',
@@ -281,15 +195,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: 'rgba(212,175,55,0.12)',
   },
   actionLabel: {
     fontSize: 16,
-    color: '#333',
+    color: '#e2e8f0',
   },
   actionArrow: {
     fontSize: 24,
-    color: '#ccc',
+    color: '#D4AF37',
   },
   appInfo: {
     alignItems: 'center',
@@ -298,15 +212,15 @@ const styles = StyleSheet.create({
   },
   appVersion: {
     fontSize: 14,
-    color: '#666',
+    color: '#cbd5e1',
     marginBottom: 5,
   },
   appCopyright: {
     fontSize: 12,
-    color: '#999',
+    color: '#94a3b8',
   },
   logoutButton: {
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(127, 29, 29, 0.18)',
     marginHorizontal: 20,
     marginVertical: 20,
     padding: 18,
@@ -320,30 +234,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     letterSpacing: 0.3,
-  },
-  availabilityRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
-  },
-  availabilityChip: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  availabilityChipActive: {
-    borderColor: '#3b82f6',
-    backgroundColor: 'rgba(59,130,246,0.12)',
-  },
-  availabilityChipText: {
-    color: '#475569',
-    fontWeight: '600',
-    fontSize: 12,
-    textTransform: 'capitalize',
-  },
-  availabilityChipTextActive: {
-    color: '#1d4ed8',
   },
 });

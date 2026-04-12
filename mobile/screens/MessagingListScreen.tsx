@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { messageAPI } from '../services/api';
 
 interface Conversation {
   id: string;
@@ -59,8 +60,7 @@ export default function MessagingListScreen({ onBack, onNavigate, currentUserId 
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`http://localhost:3000/api/messages?userId=${currentUserId}`);
-      const data = await response.json();
+      const data = await messageAPI.getConversations(currentUserId);
 
       if (data.success && data.conversations) {
         // Transform API response to match our Conversation interface

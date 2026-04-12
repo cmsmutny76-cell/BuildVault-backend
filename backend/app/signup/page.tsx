@@ -40,6 +40,14 @@ const ACCOUNT_OPTIONS: AccountOption[] = [
     group: "pro49",
   },
   {
+    userType: "supplier",
+    label: "Supplier",
+    description: "I supply materials, products, or jobsite deliveries",
+    priceLabel: "Free",
+    priceValue: 0,
+    group: "free",
+  },
+  {
     userType: "landscaper",
     label: "Landscaper",
     description: "I provide landscaping and outdoor services",
@@ -90,7 +98,7 @@ const ACCOUNT_OPTIONS: AccountOption[] = [
 ];
 
 const ACCOUNT_GROUPS: Array<{ key: AccountOption["group"]; title: string; subtitle: string }> = [
-  { key: "free", title: "Free Access", subtitle: "Homeowners and job seekers" },
+  { key: "free", title: "Free Access", subtitle: "Homeowners, job seekers, and suppliers" },
   { key: "pro49", title: "$49.99 / Month", subtitle: "Field services and career partners" },
   { key: "pro99", title: "$99.99 / Month", subtitle: "Commercial and portfolio operators" },
 ];
@@ -260,7 +268,7 @@ export default function SignupPage() {
 
                 {selectedAccount.priceValue > 0 && (
                   <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-                    30-day free trial included. Then {selectedAccount.priceLabel.toLowerCase()}.
+                    {selectedAccount.priceLabel}
                   </div>
                 )}
 
@@ -321,7 +329,7 @@ export default function SignupPage() {
         {/* Info note */}
         <div className="mt-6 p-4 rounded-lg bg-zinc-800/50 border border-zinc-600 text-sm text-zinc-400">
           <p className="text-xs">
-            Paid professional accounts start with a 30-day free trial. Homeowners and employment seekers remain free.
+            Homeowners and employment seekers have free access. Professional accounts have paid subscription options.
           </p>
         </div>
       </div>

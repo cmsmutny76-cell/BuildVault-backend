@@ -15,6 +15,7 @@ import {
   Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import BrandLockup from '../components/BrandLockup';
 
 interface Address {
   id: string;
@@ -29,7 +30,8 @@ interface Address {
 }
 
 interface HomeScreenProps {
-  onNavigate: (screen: 'home' | 'profile' | 'settings' | 'contractorProfile' | 'projectProfile' | 'projectSelector' | 'newEstimate' | 'projectDetails' | 'photoAnalysis' | 'blueprintAnalysis' | 'buildingCodes' | 'findContractors' | 'priceComparison' | 'permitAssistance' | 'help' | 'contractorView' | 'contractorSearch' | 'estimateView' | 'estimateList' | 'commercial' | 'multiFamily' | 'apartment' | 'developer' | 'landscaping' | 'foodProvider' | 'careerOpportunities' | 'employment' | 'laborPool' | 'messaging') => void;
+  onNavigate: (screen: 'home' | 'profile' | 'settings' | 'contractorProfile' | 'projectProfile' | 'projectSelector' | 'newEstimate' | 'projectDetails' | 'photoAnalysis' | 'blueprintAnalysis' | 'buildingCodes' | 'findContractors' | 'findSuppliers' | 'supplierProfile' | 'projectScheduling' | 'priceComparison' | 'permitAssistance' | 'help' | 'contractorView' | 'contractorSearch' | 'estimateView' | 'estimateList' | 'commercial' | 'multiFamily' | 'apartment' | 'developer' | 'landscaping' | 'foodProvider' | 'careerOpportunities' | 'employment' | 'laborPool' | 'messaging') => void;
+  onLogout?: () => void;
   user: { id: string; email: string; isContractor: boolean } | null;
   selectedProject?: {
     id: string;
@@ -42,7 +44,7 @@ interface HomeScreenProps {
 
 type ProjectCategory = 'residential' | 'commercial' | 'multi-family' | 'apartment' | 'landscaping' | 'career-opportunities' | 'labor-pool' | 'employment' | 'developer' | 'food-service' | null;
 
-export default function HomeScreen({ onNavigate, user, selectedProject }: HomeScreenProps) {
+export default function HomeScreen({ onNavigate, onLogout, user, selectedProject }: HomeScreenProps) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<ProjectCategory>(null);
   const [viewMode, setViewMode] = useState<'homeowner' | 'contractor'>(
@@ -158,13 +160,18 @@ export default function HomeScreen({ onNavigate, user, selectedProject }: HomeSc
         onNavigate('foodProvider');
         break;
       default:
-        Alert.alert('Coming Soon', 'This category will be available soon.');
+        onNavigate('contractorSearch');
     }
   };
 
-  const handleMenuOption = (screen: 'profile' | 'settings' | 'contractorProfile' | 'projectProfile' | 'newEstimate' | 'projectDetails' | 'photoAnalysis' | 'blueprintAnalysis' | 'buildingCodes' | 'findContractors' | 'priceComparison' | 'permitAssistance' | 'help' | 'contractorView' | 'contractorSearch' | 'estimateView' | 'estimateList') => {
+  const handleMenuOption = (screen: 'profile' | 'settings' | 'contractorProfile' | 'projectProfile' | 'newEstimate' | 'projectDetails' | 'photoAnalysis' | 'blueprintAnalysis' | 'buildingCodes' | 'findContractors' | 'findSuppliers' | 'supplierProfile' | 'projectScheduling' | 'priceComparison' | 'permitAssistance' | 'help' | 'contractorView' | 'contractorSearch' | 'estimateView' | 'estimateList') => {
     setMenuVisible(false);
     onNavigate(screen);
+  };
+
+  const handleLogout = () => {
+    setMenuVisible(false);
+    onLogout?.();
   };
 
   return (
@@ -229,15 +236,45 @@ export default function HomeScreen({ onNavigate, user, selectedProject }: HomeSc
               <Text style={styles.menuItemIcon}>💰</Text>
               <Text style={styles.menuItemText}>Price Comparison</Text>
             </TouchableOpacity>
+
+            <View style={styles.menuDivider} />
+
+            <TouchableOpacity 
+              style={styles.menuItem}
+              onPress={() => handleMenuOption('projectScheduling')}
+            >
+              <Text style={styles.menuItemIcon}>📅</Text>
+              <Text style={styles.menuItemText}>Project Scheduling</Text>
+            </TouchableOpacity>
             
             <View style={styles.menuDivider} />
             
             <TouchableOpacity 
               style={styles.menuItem}
-              onPress={() => handleMenuOption('findContractors')}
+              onPress={() => handleMenuOption('contractorSearch')}
             >
               <Text style={styles.menuItemIcon}>👷</Text>
               <Text style={styles.menuItemText}>Find Contractors</Text>
+            </TouchableOpacity>
+
+            <View style={styles.menuDivider} />
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => handleMenuOption('findSuppliers')}
+            >
+              <Text style={styles.menuItemIcon}>🏗️</Text>
+              <Text style={styles.menuItemText}>Find Suppliers</Text>
+            </TouchableOpacity>
+
+            <View style={styles.menuDivider} />
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => handleMenuOption('supplierProfile')}
+            >
+              <Text style={styles.menuItemIcon}>🏪</Text>
+              <Text style={styles.menuItemText}>Supplier Profile</Text>
             </TouchableOpacity>
             
             <View style={styles.menuDivider} />
@@ -268,6 +305,16 @@ export default function HomeScreen({ onNavigate, user, selectedProject }: HomeSc
             >
               <Text style={styles.menuItemIcon}>ℹ️</Text>
               <Text style={styles.menuItemText}>Help & Support</Text>
+            </TouchableOpacity>
+
+            <View style={styles.menuDivider} />
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={handleLogout}
+            >
+              <Text style={styles.menuItemIcon}>🚪</Text>
+              <Text style={styles.logoutMenuItemText}>Logout</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -389,20 +436,11 @@ export default function HomeScreen({ onNavigate, user, selectedProject }: HomeSc
         )}
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
-            <View style={styles.logoBadge}>
-              <View style={styles.quadrantRow}>
-                <View style={[styles.quadrant, styles.residential]} />
-                <View style={[styles.quadrant, styles.commercial]} />
-              </View>
-              <View style={styles.quadrantRow}>
-                <View style={[styles.quadrant, styles.landscaping]} />
-                <View style={[styles.quadrant, styles.remodeling]} />
-              </View>
-            </View>
-            <View>
-              <Text style={styles.title}>Construction Leads</Text>
-              <Text style={styles.subtitle}>{selectedCategory ? `${selectedCategory.charAt(0).toUpperCase()}${selectedCategory.slice(1).replace('-', ' ')} Projects` : 'Select Project Type'}</Text>
-            </View>
+            <BrandLockup
+              subtitle={selectedCategory ? `${selectedCategory.charAt(0).toUpperCase()}${selectedCategory.slice(1).replace('-', ' ')} Projects` : 'Select Project Type'}
+              theme="dark"
+              variant="compact"
+            />
           </View>
           <TouchableOpacity 
             style={styles.menuButton}
@@ -821,7 +859,7 @@ export default function HomeScreen({ onNavigate, user, selectedProject }: HomeSc
               {viewMode === 'homeowner' && (
                 <TouchableOpacity 
                   style={styles.quickActionCard}
-                  onPress={() => handleMenuOption('findContractors')}
+                  onPress={() => handleMenuOption('contractorSearch')}
                 >
                   <Text style={styles.quickActionIcon}>👷</Text>
                   <View style={styles.quickActionContent}>
@@ -927,9 +965,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    flex: 1,
   },
   backButtonTop: {
     backgroundColor: '#D4AF37',
@@ -944,49 +980,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
-  logoBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: 6,
-    backgroundColor: '#1e40af',
-    borderWidth: 2,
-    borderColor: '#D4AF37',
-    overflow: 'hidden',
-  },
-  quadrantRow: {
-    flexDirection: 'row',
-    flex: 1,
-  },
-  quadrant: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  residential: {
-    backgroundColor: '#3b82f6',
-  },
-  commercial: {
-    backgroundColor: '#2563eb',
-  },
-  landscaping: {
-    backgroundColor: '#10b981',
-  },
-  remodeling: {
-    backgroundColor: '#1e40af',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#D4AF37',
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginTop: 2,
-  },
   menuButton: {
     padding: 8,
+    marginLeft: 12,
   },
   menuIcon: {
     width: 24,
@@ -1030,6 +1026,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#ffffff',
     fontWeight: '500',
+  },
+  logoutMenuItemText: {
+    fontSize: 16,
+    color: '#fca5a5',
+    fontWeight: '700',
   },
   menuDivider: {
     height: 1,

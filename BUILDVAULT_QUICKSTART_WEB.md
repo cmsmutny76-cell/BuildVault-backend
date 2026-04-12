@@ -54,6 +54,10 @@ OPENAI_API_KEY=your_key_here
 ### 2. Start Backend API
 
 ```powershell
+npm run dev
+# or
+npm run web
+# or
 npm run backend
 # or
 cd backend
@@ -61,6 +65,8 @@ npm run dev
 ```
 
 **Backend runs on:** http://localhost:3000
+
+> Important: `buildvault-start-app.bat` and `buildvault-open-app.html` target Expo web on port 8081 (mobile shell), not the BuildVault internet platform.
 
 ### 3. Start Mobile App
 

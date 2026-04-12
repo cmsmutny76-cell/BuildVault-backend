@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import jwt from 'jsonwebtoken';
 import OpenAI from 'openai';
 import { fetchBuildingCodes } from '../../../../lib/services/complianceService';
 import { generateMaterialQuoteWithCatalog } from '../../../../lib/services/estimateService';
@@ -14,6 +15,38 @@ import {
   mergeMaterials,
   inferApplicableHardware,
 } from '../../../../lib/services/reportBuilderService';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+function getAuthenticatedUserId(request: NextRequest): string | null {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.slice('Bearer '.length).trim();
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload & { userId?: string };
+    return typeof decoded.userId === 'string' ? decoded.userId : null;
+  } catch {
+    // Dev fallback token support from auth/login route
+    try {
+      const parsed = JSON.parse(Buffer.from(token, 'base64url').toString('utf8')) as {
+        userId?: string;
+        exp?: number;
+      };
+
+      if (typeof parsed.exp === 'number' && Date.now() > parsed.exp) {
+        return null;
+      }
+
+      return typeof parsed.userId === 'string' ? parsed.userId : null;
+    } catch {
+      return null;
+    }
+  }
+}
 
 
 function buildPhotoAnalysisReportText(input: {
@@ -70,7 +103,23 @@ function buildPhotoAnalysisReportText(input: {
  */
 export async function POST(request: NextRequest) {
   try {
+    const authenticatedUserId = getAuthenticatedUserId(request);
+    if (!authenticatedUserId) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const { photoUrl, projectType, projectId, location, userId, comparisonStores } = await request.json();
+    if (userId && userId !== authenticatedUserId) {
+      return NextResponse.json(
+        { error: 'Forbidden: user mismatch' },
+        { status: 403 }
+      );
+    }
+
+    const effectiveUserId = authenticatedUserId;
     const openAiApiKey = process.env.OPENAI_API_KEY || '';
     const allowMockFallback = process.env.ALLOW_MOCK_AI_FALLBACK === 'true';
 
@@ -229,7 +278,7 @@ Provide the response in JSON format.`;
       if (projectId) {
         await saveProjectDocument({
           projectId,
-          createdByUserId: userId,
+          createdByUserId: effectiveUserId,
           type: 'photo-analysis-report',
           title: `Photo Analysis Report - ${projectType || 'General Project'}`,
           tags: ['photo-analysis', projectType || 'general'],
@@ -240,7 +289,7 @@ Provide the response in JSON format.`;
 
         await saveProjectDocument({
           projectId,
-          createdByUserId: userId,
+          createdByUserId: effectiveUserId,
           type: 'materials-quote-report',
           title: `Materials Quote Report - ${projectType || 'General Project'}`,
           tags: ['materials-quote', projectType || 'general'],
@@ -368,7 +417,7 @@ Provide the response in JSON format.`;
       if (projectId) {
         await saveProjectDocument({
           projectId,
-          createdByUserId: userId,
+          createdByUserId: effectiveUserId,
           type: 'photo-analysis-report',
           title: `Photo Analysis Report - ${projectType || 'General Project'}`,
           tags: ['photo-analysis', projectType || 'general'],
@@ -379,7 +428,7 @@ Provide the response in JSON format.`;
 
         await saveProjectDocument({
           projectId,
-          createdByUserId: userId,
+          createdByUserId: effectiveUserId,
           type: 'materials-quote-report',
           title: `Materials Quote Report - ${projectType || 'General Project'}`,
           tags: ['materials-quote', projectType || 'general'],

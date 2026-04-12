@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import WebBrandMark from '../../components/WebBrandMark';
 
 const CATEGORIES = [
   {
@@ -109,23 +110,29 @@ export default function CategoriesPage() {
       
       <div className="relative z-10">
         {/* Top Navigation */}
-        <div className="border-b border-white/10 backdrop-blur-sm bg-black/30 sticky top-0 z-50">
+        <div className="border-b border-white/10 backdrop-blur-sm bg-black/30 sticky top-0 z-[1000]">
           <div className="max-w-7xl mx-auto px-5 py-4 flex justify-between items-center">
-            <Link href="/dashboard" className="text-xl font-bold text-blue-400">🏗️ Construction Lead</Link>
+            <WebBrandMark href="/dashboard" size="featured" textClassName="text-blue-400" />
             <div className="flex gap-4 items-center">
               <Link href="/dashboard" className="text-white/70 hover:text-white transition text-sm font-medium">Dashboard</Link>
               <Link href="/categories" className="text-white/70 hover:text-white transition text-sm font-medium font-semibold text-blue-400">Categories</Link>
               <Link href="/feed" className="text-white/70 hover:text-white transition text-sm font-medium">Feed</Link>
               <Link href="/messages" className="text-white/70 hover:text-white transition text-sm font-medium">Messages</Link>
-              <div className="relative">
+              <div className="relative z-[1100]">
                 <button onClick={() => setMenuOpen(!menuOpen)} className="text-2xl text-white/70 hover:text-white transition">☰</button>
                 {menuOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-black/80 border border-white/20 rounded-lg shadow-lg z-50 backdrop-blur-sm">
+                  <div className="absolute right-0 mt-2 w-56 bg-black/90 border border-white/20 rounded-lg shadow-lg z-[1200] backdrop-blur-sm">
                     <Link href="/profile" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-white/70 hover:bg-white/10 hover:text-white transition">👤 Profile</Link>
                     <Link href="/photo-analysis" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-white/70 hover:bg-white/10 hover:text-white transition">📸 Photo Analysis</Link>
                     <Link href="/blueprint-analysis" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-white/70 hover:bg-white/10 hover:text-white transition">📐 Blueprint Analysis</Link>
                     <Link href="/building-codes" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-white/70 hover:bg-white/10 hover:text-white transition">🏛️ Building Codes</Link>
+                    <Link href="/price-comparison" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-white/70 hover:bg-white/10 hover:text-white transition">💰 Price Comparison</Link>
+                    <Link href="/find-contractors" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-white/70 hover:bg-white/10 hover:text-white transition">👷 Find Contractors</Link>
+                    <Link href="/find-suppliers" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-white/70 hover:bg-white/10 hover:text-white transition">🧱 Find Suppliers</Link>
+                    <Link href="/permit-assistance" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-white/70 hover:bg-white/10 hover:text-white transition">📋 Permit Assistance</Link>
+                    <Link href="/project-scheduling" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-white/70 hover:bg-white/10 hover:text-white transition">Project Scheduling</Link>
                     <Link href="/settings" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-white/70 hover:bg-white/10 hover:text-white transition">⚙️ Settings</Link>
+                    <Link href="/help" onClick={() => setMenuOpen(false)} className="block px-4 py-3 text-white/70 hover:bg-white/10 hover:text-white transition">ℹ️ Help & Support</Link>
                   </div>
                 )}
               </div>

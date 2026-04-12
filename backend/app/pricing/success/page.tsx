@@ -14,7 +14,7 @@ export default function PricingSuccessPage({
         <p className="mt-3 text-zinc-600">
           {free
             ? "Your free plan is active."
-            : "Your checkout completed successfully. Billing access is now active for your account."}
+            : "Your checkout completed successfully. Your 90-day $10/month introductory pricing is now active."}
         </p>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2">

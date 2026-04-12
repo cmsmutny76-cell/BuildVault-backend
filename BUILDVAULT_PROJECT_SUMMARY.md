@@ -86,7 +86,7 @@ npm run mobile
 
 ### Documentation
 - README.md (comprehensive)
-- QUICKSTART.md
+- BUILDVAULT_QUICKSTART_WEB.md
 - BLUEPRINT_FEATURES.md
 
 ### Backend

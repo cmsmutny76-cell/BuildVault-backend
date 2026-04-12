@@ -162,9 +162,10 @@ class RevenueCatService {
   }
 
   /**
-   * Start free trial (if configured in RevenueCat)
+   * Start the introductory subscription flow.
+   * RevenueCat applies intro pricing/trial from the product configuration.
    */
-  async startFreeTrial(): Promise<{
+  async startIntroSubscription(): Promise<{
     success: boolean;
     customerInfo?: CustomerInfo;
     error?: string;
@@ -176,14 +177,14 @@ class RevenueCatService {
         return { success: false, error: 'No offerings available' };
       }
 
-      // Get the monthly package (should have trial configured)
+      // Get the monthly package (should have intro pricing configured)
       const monthlyPackage = offerings.monthly;
       
       if (!monthlyPackage) {
         return { success: false, error: 'Monthly package not available' };
       }
 
-      // Purchase will automatically use trial if available
+      // Purchase will automatically use intro pricing (or trial) if configured
       const { customerInfo } = await Purchases.purchasePackage(monthlyPackage);
       
       // Sync to backend
@@ -193,13 +194,13 @@ class RevenueCatService {
       
       return { success: true, customerInfo };
     } catch (error: any) {
-      console.error('Trial signup failed:', error);
+      console.error('Intro subscription signup failed:', error);
       
       if (error.userCancelled) {
-        return { success: false, error: 'Trial signup cancelled' };
+        return { success: false, error: 'Signup cancelled' };
       }
       
-      return { success: false, error: error.message || 'Trial signup failed' };
+      return { success: false, error: error.message || 'Signup failed' };
     }
   }
 
@@ -233,17 +234,19 @@ class RevenueCatService {
   }
 
   /**
-   * Check if user is in trial period
+   * Check if user is in introductory period (intro pricing or trial)
    */
-  async isInTrialPeriod(): Promise<boolean> {
+  async isInIntroPeriod(): Promise<boolean> {
     try {
       const customerInfo = await this.getCustomerInfo();
       
-      // Check each active entitlement for trial status
+      // Treat intro and trial periods as introductory access windows.
       const entitlements = Object.values(customerInfo.entitlements.active);
-      return entitlements.some((entitlement) => entitlement.periodType === 'trial');
+      return entitlements.some(
+        (entitlement) => entitlement.periodType === 'trial' || entitlement.periodType === 'intro'
+      );
     } catch (error) {
-      console.error('Failed to check trial status:', error);
+      console.error('Failed to check intro status:', error);
       return false;
     }
   }
@@ -313,7 +316,7 @@ class RevenueCatService {
    */
   async getSubscriptionStatus(): Promise<{
     isActive: boolean;
-    isTrial: boolean;
+    isIntroPricing: boolean;
     expiresAt: Date | null;
     productIdentifier: string | null;
     willRenew: boolean;
@@ -325,7 +328,7 @@ class RevenueCatService {
       if (entitlements.length === 0) {
         return {
           isActive: false,
-          isTrial: false,
+          isIntroPricing: false,
           expiresAt: null,
           productIdentifier: null,
           willRenew: false,
@@ -336,7 +339,8 @@ class RevenueCatService {
       
       return {
         isActive: true,
-        isTrial: primaryEntitlement.periodType === 'trial',
+        isIntroPricing:
+          primaryEntitlement.periodType === 'trial' || primaryEntitlement.periodType === 'intro',
         expiresAt: primaryEntitlement.expirationDate ? new Date(primaryEntitlement.expirationDate) : null,
         productIdentifier: primaryEntitlement.productIdentifier,
         willRenew: primaryEntitlement.willRenew,
@@ -345,12 +349,17 @@ class RevenueCatService {
       console.error('Failed to get subscription status:', error);
       return {
         isActive: false,
-        isTrial: false,
+        isIntroPricing: false,
         expiresAt: null,
         productIdentifier: null,
         willRenew: false,
       };
     }
+  }
+
+  // Backward compatibility for older call sites while we finish migration.
+  async startFreeTrial() {
+    return this.startIntroSubscription();
   }
 }
 

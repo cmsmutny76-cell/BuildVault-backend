@@ -6,7 +6,7 @@
 - [x] Implement real authentication (replace mock login) ✅
 - [x] Connect to backend API for user registration ✅
 - [x] Add password reset functionality ✅
-- [x] Implement email verification ✅
+- [ ] Implement email verification
 - [ ] Add social login (Google, Apple, Facebook)
 - [x] Create user profile management ✅
 - [ ] Add profile photo upload
@@ -54,7 +54,7 @@
   - [x] Ratings/reviews ✅
   - [x] Contractor availability ✅
 - [x] Add match ranking display ✅
-- [x] Send match notifications ✅
+- [ ] Send match notifications
 
 ### AI Photo Analysis
 - [x] API endpoint created (ready for OpenAI integration) ✅
@@ -73,21 +73,21 @@
 - [ ] Integrate OpenAI Vision API (add API key)
 
 ### AI Description Generator
-- [x] Enhance project description AI helper ✅
+- [ ] Enhance project description AI helper
 - [ ] Add voice-to-text for descriptions
-- [x] Generate professional project descriptions ✅
+- [ ] Generate professional project descriptions
 
 ## 💼 High Priority - Business Features
-- [x] Build estimate creation API ✅
+x] Build estimate creation API ✅
 - [x] Add line-item pricing ✅
 - [x] Add material costs calculation ✅
 - [x] Add labor cost calculator ✅
 - [x] Add estimate approval workflow ✅
-- [x] Generate PDF estimates ✅
-- [x] Track estimate revisions ✅
+- [ ] Generate PDF estimates
+- [ ] Track estimate revisions
 - [ ] Create frontend estimate builder UI
 - [ ] Add estimate approval workflow
-- [x] Track estimate revisions ✅
+- [ ] Track estimate revisions
 
 ### Find Contractors Feature
 - [ ] Build contractor search with filters
@@ -200,8 +200,7 @@
 
 ## 💬 Communication Features
 
-### Messaging
-- [x] Build messaging API endpoints ✅
+###x] Build messaging API endpoints ✅
 - [x] Create conversation list view ✅
 - [x] Create chat screen interface ✅
 - [x] Add read receipts ✅

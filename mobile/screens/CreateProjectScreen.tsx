@@ -9,6 +9,9 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
+import MobileScreenHeader from '../components/MobileScreenHeader';
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
 
 interface CreateProjectScreenProps {
   currentUserId: string;
@@ -57,7 +60,7 @@ export default function CreateProjectScreen({
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:3000/api/projects', {
+      const response = await fetch(`${API_BASE_URL}/projects`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -98,13 +101,13 @@ export default function CreateProjectScreen({
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={onBack}>
-          <Text style={styles.backButtonText}>← Cancel</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Create Project</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <MobileScreenHeader
+        onBack={onBack}
+        backLabel="← Cancel"
+        title="Create Project"
+        subtitle="Set up the project details and location to start matching work"
+        theme="dark"
+      />
 
       <ScrollView style={styles.content}>
         <View style={styles.section}>
@@ -245,47 +248,25 @@ export default function CreateProjectScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-  },
-  backButton: {
-    padding: 8,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: '#667eea',
-    fontWeight: '600',
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1e293b',
-  },
-  placeholder: {
-    width: 80,
+    backgroundColor: '#0f172a',
   },
   content: {
     flex: 1,
   },
   section: {
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(255,255,255,0.05)',
     marginTop: 16,
+    marginHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.22)',
     paddingHorizontal: 16,
     paddingVertical: 20,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: '#ffffff',
     marginBottom: 16,
   },
   inputGroup: {
@@ -294,20 +275,20 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#334155',
+    color: '#cbd5e1',
     marginBottom: 8,
   },
   required: {
     color: '#ef4444',
   },
   input: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: 'rgba(15,23,42,0.92)',
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: 'rgba(212,175,55,0.25)',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    color: '#1e293b',
+    color: '#ffffff',
   },
   textArea: {
     minHeight: 100,
@@ -321,16 +302,16 @@ const styles = StyleSheet.create({
   typeCard: {
     width: '31%',
     margin: '1%',
-    backgroundColor: '#f8fafc',
+    backgroundColor: 'rgba(15,23,42,0.88)',
     borderWidth: 2,
-    borderColor: '#e2e8f0',
+    borderColor: 'rgba(212,175,55,0.18)',
     borderRadius: 8,
     padding: 12,
     alignItems: 'center',
   },
   typeCardSelected: {
-    borderColor: '#667eea',
-    backgroundColor: '#f0f4ff',
+    borderColor: '#D4AF37',
+    backgroundColor: 'rgba(212,175,55,0.12)',
   },
   typeIcon: {
     fontSize: 32,
@@ -338,13 +319,13 @@ const styles = StyleSheet.create({
   },
   typeLabel: {
     fontSize: 12,
-    color: '#64748b',
+    color: '#94a3b8',
     textAlign: 'center',
     fontWeight: '500',
   },
   typeLabelSelected: {
-    color: '#667eea',
-    fontWeight: '600',
+    color: '#D4AF37',
+    fontWeight: '700',
   },
   row: {
     flexDirection: 'row',
@@ -356,7 +337,7 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   createButton: {
-    backgroundColor: '#667eea',
+    backgroundColor: '#D4AF37',
     marginHorizontal: 16,
     marginTop: 24,
     padding: 16,
@@ -367,11 +348,11 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   createButtonText: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 16,
     fontWeight: 'bold',
   },
   bottomPadding: {
-    height: 32,
+    height: 40,
   },
 });

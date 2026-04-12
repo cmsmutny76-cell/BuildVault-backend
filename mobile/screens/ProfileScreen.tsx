@@ -11,7 +11,13 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import MobileScreenHeader from '../components/MobileScreenHeader';
 import { revenueCatService } from '../services/revenueCat';
+import { fetchSubscriptionFromBackend } from '../services/subscriptionSync';
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
+const AUTH_TOKEN_KEY = 'buildvault.authToken';
 
 interface UserProfile {
   id?: string;
@@ -28,11 +34,11 @@ interface UserProfile {
 
 interface ProfileScreenProps {
   onBack: () => void;
-  onNavigate?: (screen: 'contractorProfile' | 'projectProfile') => void;
-  currentUserId?: string;
+  onNavigate?: (screen: 'contractorProfile') => void;
+  userId?: string;
 }
 
-export default function ProfileScreen({ onBack, onNavigate, currentUserId }: ProfileScreenProps) {
+export default function ProfileScreen({ onBack, onNavigate, userId }: ProfileScreenProps) {
   const [isContractor, setIsContractor] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -60,18 +66,24 @@ export default function ProfileScreen({ onBack, onNavigate, currentUserId }: Pro
 
   // Load profile and subscription status on mount
   useEffect(() => {
-    if (!currentUserId) {
-      setLoading(false);
-      return;
-    }
-
-    loadProfile(currentUserId);
+    loadProfile();
     loadSubscriptionStatus();
-  }, [currentUserId]);
+  }, [userId]);
 
-  const loadProfile = async (userId: string) => {
+  const loadProfile = async () => {
     try {
-      const response = await fetch(`http://localhost:3000/api/users/profile?userId=${userId}`);
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
+      const token = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+      const response = await fetch(`${API_BASE_URL}/users/profile?userId=${userId}`, {
+        headers: token
+          ? {
+              Authorization: `Bearer ${token}`,
+            }
+          : undefined,
+      });
       const data = await response.json();
 
       if (response.ok && data.success) {
@@ -96,6 +108,21 @@ export default function ProfileScreen({ onBack, onNavigate, currentUserId }: Pro
 
   const loadSubscriptionStatus = async () => {
     try {
+      // Check backend first — covers users who subscribed on the web via Stripe
+      if (userId) {
+        const backendResult = await fetchSubscriptionFromBackend(userId);
+        if (backendResult.success && backendResult.subscription?.status === 'active') {
+          const sub = backendResult.subscription;
+          setSubscriptionStatus({
+            isActive: true,
+            isIntroPricing: sub.discountEndsAt ? new Date(sub.discountEndsAt) > new Date() : false,
+            expiresAt: sub.discountEndsAt || null,
+            productId: sub.plan || null,
+          });
+          return;
+        }
+      }
+      // Fall back to RevenueCat — covers users who subscribed on mobile via App Store/Play Store
       const status = await revenueCatService.getSubscriptionStatus();
       setSubscriptionStatus(status);
     } catch (error) {
@@ -103,22 +130,22 @@ export default function ProfileScreen({ onBack, onNavigate, currentUserId }: Pro
     }
   };
 
-  const handleStartTrial = async () => {
+  const handleStartIntroOffer = async () => {
     setSubscriptionLoading(true);
     try {
-      const result = await revenueCatService.startFreeTrial();
+      const result = await revenueCatService.startIntroSubscription();
       
       if (result.success) {
         Alert.alert(
-          'Trial Started!',
-          'Your 30-day free trial has begun. Start receiving leads today!',
+          'Intro Offer Started!',
+          'Your $10/month intro period is now active. Start receiving leads today!',
           [{ text: 'Great!', onPress: loadSubscriptionStatus }]
         );
       } else {
-        Alert.alert('Trial Unavailable', result.error || 'Unable to start trial at this time.');
+        Alert.alert('Subscription Unavailable', result.error || 'Unable to start subscription at this time.');
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to start trial');
+      Alert.alert('Error', error.message || 'Failed to start subscription');
     } finally {
       setSubscriptionLoading(false);
     }
@@ -143,8 +170,8 @@ export default function ProfileScreen({ onBack, onNavigate, currentUserId }: Pro
   };
 
   const handleSave = async () => {
-    if (!currentUserId) {
-      Alert.alert('Error', 'You must be logged in to update profile settings.');
+    if (!userId) {
+      Alert.alert('Error', 'Unable to identify your account. Please sign in again.');
       return;
     }
 
@@ -162,13 +189,15 @@ export default function ProfileScreen({ onBack, onNavigate, currentUserId }: Pro
     setSaving(true);
 
     try {
-      const response = await fetch('http://localhost:3000/api/users/profile', {
-        method: 'PATCH',
+      const token = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+      const response = await fetch(`${API_BASE_URL}/users/profile`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          userId: currentUserId,
+          userId,
           ...profileData,
         }),
       });
@@ -198,25 +227,15 @@ export default function ProfileScreen({ onBack, onNavigate, currentUserId }: Pro
     );
   }
 
-  if (!currentUserId) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Please log in to manage your profile.</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Profile</Text>
-        <Text style={styles.subtitle}>Manage your account</Text>
-      </View>
+      <MobileScreenHeader
+        onBack={onBack}
+        backLabel="← Back"
+        title="Profile"
+        subtitle="Manage your account"
+        theme="dark"
+      />
 
       <ScrollView style={styles.content}>
         {/* User Type Toggle */}
@@ -225,7 +244,7 @@ export default function ProfileScreen({ onBack, onNavigate, currentUserId }: Pro
             <View>
               <Text style={styles.toggleLabel}>I am a Contractor</Text>
               <Text style={styles.toggleSubtext}>
-                {isContractor ? 'Contractor features enabled' : 'Homeowner plan is free'}
+                {isContractor ? 'Contractor features enabled' : 'Switch to contractor mode'}
               </Text>
             </View>
             <Switch
@@ -236,22 +255,18 @@ export default function ProfileScreen({ onBack, onNavigate, currentUserId }: Pro
             />
           </View>
           
-          {/* Profile Setup Button */}
-          {onNavigate && (
+          {/* Contractor Profile Setup Button */}
+          {isContractor && onNavigate && (
             <TouchableOpacity
               style={styles.contractorProfileButton}
-              onPress={() => onNavigate(isContractor ? 'contractorProfile' : 'projectProfile')}
+              onPress={() => onNavigate('contractorProfile')}
             >
               <View style={styles.contractorProfileContent}>
-                <Text style={styles.contractorProfileIcon}>{isContractor ? '🏆' : '🏠'}</Text>
+                <Text style={styles.contractorProfileIcon}>🏆</Text>
                 <View style={styles.contractorProfileText}>
-                  <Text style={styles.contractorProfileTitle}>
-                    {isContractor ? 'Complete Contractor Profile' : 'Complete Homeowner Profile'}
-                  </Text>
+                  <Text style={styles.contractorProfileTitle}>Complete Contractor Profile</Text>
                   <Text style={styles.contractorProfileSubtext}>
-                    {isContractor
-                      ? 'Set up detailed profile for AI-powered project matching'
-                      : 'Set up your residential project profile and preferences'}
+                    Set up detailed profile for AI-powered project matching
                   </Text>
                 </View>
                 <Text style={styles.contractorProfileArrow}>→</Text>
@@ -395,12 +410,14 @@ export default function ProfileScreen({ onBack, onNavigate, currentUserId }: Pro
                 {subscriptionStatus.isActive ? (
                   <>
                     <Text style={styles.subscriptionTitle}>
-                      ✅ {subscriptionStatus.isInTrial ? 'Free Trial Active' : 'Subscription Active'}
+                      ✅ {subscriptionStatus.isIntroPricing ? 'Intro Pricing Active' : 'Subscription Active'}
                     </Text>
                     <Text style={styles.subscriptionText}>
-                      {subscriptionStatus.isInTrial 
-                        ? `Your trial ends on ${new Date(subscriptionStatus.expirationDate).toLocaleDateString()}`
-                        : `Next billing: ${new Date(subscriptionStatus.expirationDate).toLocaleDateString()}`
+                      {subscriptionStatus.expiresAt
+                        ? subscriptionStatus.isIntroPricing
+                          ? `Your intro period ends on ${new Date(subscriptionStatus.expiresAt).toLocaleDateString()}`
+                          : `Next billing: ${new Date(subscriptionStatus.expiresAt).toLocaleDateString()}`
+                        : 'Subscription is active.'
                       }
                     </Text>
                     <Text style={styles.subscriptionSubtext}>
@@ -409,20 +426,17 @@ export default function ProfileScreen({ onBack, onNavigate, currentUserId }: Pro
                   </>
                 ) : (
                   <>
-                    <Text style={styles.subscriptionTitle}>🎉 30-Day Free Trial</Text>
+                    <Text style={styles.subscriptionTitle}>🎉 90-Day Intro Offer</Text>
                     <Text style={styles.subscriptionText}>
-                      Start your free trial and receive qualified leads immediately!
-                    </Text>
-                    <Text style={styles.subscriptionPrice}>
-                      Then $39/month for 90 days, then $49/month
+                      Choose your professional plan to manage projects more effectively.
                     </Text>
                     <TouchableOpacity 
-                      style={[styles.trialButton, subscriptionLoading && styles.buttonDisabled]}
-                      onPress={handleStartTrial}
+                      style={[styles.subscriptionButton, subscriptionLoading && styles.buttonDisabled]}
+                      onPress={handleStartIntroOffer}
                       disabled={subscriptionLoading}
                     >
-                      <Text style={styles.trialButtonText}>
-                        {subscriptionLoading ? 'Starting Trial...' : 'Start Free Trial'}
+                      <Text style={styles.subscriptionButtonText}>
+                        {subscriptionLoading ? 'Starting Subscription...' : 'Start Subscription'}
                       </Text>
                     </TouchableOpacity>
                   </>
@@ -467,38 +481,7 @@ export default function ProfileScreen({ onBack, onNavigate, currentUserId }: Pro
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  header: {
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  backButton: {
-    marginBottom: 10,
-  },
-  backButtonText: {
-    color: '#3b82f6',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#0f172a',
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 13,
-    color: '#64748b',
-    marginTop: 4,
+    backgroundColor: '#0f172a',
   },
   content: {
     flex: 1,
@@ -507,39 +490,34 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0f172a',
+    color: '#ffffff',
     marginTop: 10,
     marginBottom: 16,
     letterSpacing: -0.3,
   },
   card: {
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(255,255,255,0.05)',
     padding: 18,
     borderRadius: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
+    borderColor: 'rgba(212,175,55,0.22)',
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#334155',
+    color: '#cbd5e1',
     marginBottom: 8,
     marginTop: 10,
   },
   input: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: 'rgba(15,23,42,0.92)',
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: 'rgba(212,175,55,0.24)',
     padding: 14,
     borderRadius: 10,
     fontSize: 15,
-    color: '#0f172a',
+    color: '#ffffff',
   },
   row: {
     flexDirection: 'row',
@@ -556,63 +534,63 @@ const styles = StyleSheet.create({
   toggleLabel: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#0f172a',
+    color: '#ffffff',
     letterSpacing: -0.2,
   },
   toggleSubtext: {
     fontSize: 13,
-    color: '#64748b',
+    color: '#94a3b8',
     marginTop: 4,
   },
   subscriptionCard: {
-    backgroundColor: '#f0fdf4',
+    backgroundColor: 'rgba(212,175,55,0.08)',
     borderWidth: 2,
-    borderColor: '#22c55e',
+    borderColor: '#D4AF37',
   },
   activeSubscriptionCard: {
-    backgroundColor: '#eff6ff',
+    backgroundColor: 'rgba(30,64,175,0.20)',
     borderWidth: 2,
-    borderColor: '#3b82f6',
+    borderColor: '#60a5fa',
   },
   subscriptionTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#065f46',
+    color: '#ffffff',
     marginBottom: 10,
     letterSpacing: -0.3,
   },
   subscriptionText: {
     fontSize: 15,
-    color: '#047857',
+    color: '#e2e8f0',
     marginBottom: 8,
     lineHeight: 22,
   },
   subscriptionSubtext: {
     fontSize: 13,
-    color: '#059669',
+    color: '#D4AF37',
     marginTop: 4,
     fontStyle: 'italic',
   },
   subscriptionPrice: {
     fontSize: 13,
-    color: '#6b7280',
+    color: '#94a3b8',
     marginTop: 4,
     marginBottom: 12,
   },
-  trialButton: {
-    backgroundColor: '#22c55e',
+  subscriptionButton: {
+    backgroundColor: '#D4AF37',
     padding: 16,
     borderRadius: 10,
     alignItems: 'center',
     marginTop: 14,
-    shadowColor: '#22c55e',
+    shadowColor: '#D4AF37',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
   },
-  trialButtonText: {
-    color: '#ffffff',
+  subscriptionButtonText: {
+    color: '#0f172a',
     fontSize: 17,
     fontWeight: '700',
     letterSpacing: 0.3,
@@ -625,17 +603,17 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   restoreButtonText: {
-    color: '#6b7280',
+    color: '#cbd5e1',
     fontSize: 14,
     fontWeight: '600',
   },
   saveButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#D4AF37',
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 10,
-    shadowColor: '#3b82f6',
+    shadowColor: '#D4AF37',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -645,7 +623,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   saveButtonText: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 17,
     fontWeight: '700',
     letterSpacing: 0.5,
@@ -659,7 +637,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#64748b',
+    color: '#94a3b8',
   },
   loadingSubtext: {
     marginTop: 12,

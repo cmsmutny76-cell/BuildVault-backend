@@ -6,6 +6,9 @@ export const runtime = 'nodejs';
 
 type PlanKey = 'free' | 'pro49' | 'pro99';
 
+const INTRO_MONTHLY_PRICE = 10;
+const INTRO_PERIOD_DAYS = 90;
+
 const USER_PLAN_BY_TYPE: Record<string, PlanKey> = {
   homeowner: 'free',
   employment_seeker: 'free',
@@ -18,9 +21,9 @@ const USER_PLAN_BY_TYPE: Record<string, PlanKey> = {
   developer: 'pro99',
 };
 
-const PLAN_META: Record<Exclude<PlanKey, 'free'>, { plan: string; price: number }> = {
-  pro49: { plan: 'contractor_pro', price: 49.99 },
-  pro99: { plan: 'commercial_pro', price: 99.99 },
+const PLAN_META: Record<Exclude<PlanKey, 'free'>, { plan: string; standardPrice: number }> = {
+  pro49: { plan: 'contractor_pro', standardPrice: 49.99 },
+  pro99: { plan: 'commercial_pro', standardPrice: 99.99 },
 };
 
 function getDefaultPlanKey(userType: string): PlanKey {
@@ -88,6 +91,7 @@ export async function POST(request: NextRequest) {
     const stripe = new Stripe(stripeSecret, { apiVersion: '2026-01-28.clover' });
     const appUrl = resolveAppUrl(request);
     const meta = PLAN_META[requestedPlan];
+    const introEndsAt = new Date(Date.now() + INTRO_PERIOD_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -104,13 +108,20 @@ export async function POST(request: NextRequest) {
         userId: user.id,
         planKey: requestedPlan,
         planName: meta.plan,
+        introPrice: String(INTRO_MONTHLY_PRICE),
+        introDays: String(INTRO_PERIOD_DAYS),
+        introEndsAt,
+        standardPrice: String(meta.standardPrice),
       },
       subscription_data: {
-        trial_period_days: 30,
         metadata: {
           userId: user.id,
           planKey: requestedPlan,
           planName: meta.plan,
+          introPrice: String(INTRO_MONTHLY_PRICE),
+          introDays: String(INTRO_PERIOD_DAYS),
+          introEndsAt,
+          standardPrice: String(meta.standardPrice),
         },
       },
     });

@@ -4,6 +4,9 @@ import { findUserByEmail, updateUserById } from '../../../../lib/server/authStor
 
 export const runtime = 'nodejs';
 
+const INTRO_MONTHLY_PRICE = 10;
+const INTRO_PERIOD_DAYS = 90;
+
 const PLAN_BY_KEY: Record<string, { plan: string; price: number }> = {
   pro49: { plan: 'contractor_pro', price: 49.99 },
   pro99: { plan: 'commercial_pro', price: 99.99 },
@@ -27,24 +30,19 @@ async function handleStripeCheckoutCompleted(stripe: Stripe, event: Stripe.Event
   const selectedPlan = session.metadata?.planKey || 'pro49';
   const mappedPlan = PLAN_BY_KEY[selectedPlan] || PLAN_BY_KEY.pro49;
 
-  let trialEndsAt: string | undefined;
-  if (typeof session.subscription === 'string') {
-    try {
-      const subscription = await stripe.subscriptions.retrieve(session.subscription);
-      if (subscription.trial_end) {
-        trialEndsAt = new Date(subscription.trial_end * 1000).toISOString();
-      }
-    } catch (error) {
-      console.warn('Failed to retrieve Stripe subscription details:', error);
-    }
-  }
+  const metadata = session.metadata || {};
+  const parsedStandard = Number(metadata.standardPrice);
+  const parsedIntro = Number(metadata.introPrice);
+  const introEndsAt =
+    metadata.introEndsAt || new Date(Date.now() + INTRO_PERIOD_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
   await updateUserById(userId, {
     subscription: {
-      status: trialEndsAt ? 'trial' : 'active',
+      status: 'active',
       plan: mappedPlan.plan,
-      price: mappedPlan.price,
-      trialEndsAt,
+      price: Number.isFinite(parsedIntro) ? parsedIntro : INTRO_MONTHLY_PRICE,
+      standardPrice: Number.isFinite(parsedStandard) ? parsedStandard : mappedPlan.price,
+      discountEndsAt: introEndsAt,
     },
   });
 }
@@ -78,7 +76,8 @@ async function handleStripeInvoicePaymentFailed(event: Stripe.Event) {
       status: 'past_due',
       plan: user.subscription?.plan || 'contractor_pro',
       price: user.subscription?.price || 49.99,
-      trialEndsAt: user.subscription?.trialEndsAt,
+      standardPrice: user.subscription?.standardPrice,
+      discountEndsAt: user.subscription?.discountEndsAt,
     },
   });
 }
@@ -215,10 +214,11 @@ async function handleInitialPurchase(
 
   await updateUserById(userId, {
     subscription: {
-      status: isTrial ? 'trial' : 'active',
+      status: 'active',
       plan: productId,
-      price: productId.includes('99') ? 99.99 : 49.99,
-      trialEndsAt: expirationMs ? new Date(expirationMs).toISOString() : undefined,
+      price: isTrial ? INTRO_MONTHLY_PRICE : productId.includes('99') ? 99.99 : 49.99,
+      standardPrice: productId.includes('99') ? 99.99 : 49.99,
+      discountEndsAt: isTrial && expirationMs ? new Date(expirationMs).toISOString() : undefined,
     },
   });
 }
@@ -235,7 +235,8 @@ async function handleRenewal(
       status: 'active',
       plan: productId,
       price: productId.includes('99') ? 99.99 : 49.99,
-      trialEndsAt: expirationMs ? new Date(expirationMs).toISOString() : undefined,
+      standardPrice: productId.includes('99') ? 99.99 : 49.99,
+      discountEndsAt: undefined,
     },
   });
 }
@@ -251,7 +252,7 @@ async function handleCancellation(
       status: 'cancelled',
       plan: 'free',
       price: 0,
-      trialEndsAt: expirationMs ? new Date(expirationMs).toISOString() : undefined,
+      discountEndsAt: expirationMs ? new Date(expirationMs).toISOString() : undefined,
     },
   });
 }

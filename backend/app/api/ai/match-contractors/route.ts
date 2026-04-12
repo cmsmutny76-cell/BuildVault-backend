@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { dbQuery, isDatabaseEnabled } from '../../../../lib/db';
 
 interface MatchCriteria {
   projectType: string;
@@ -30,128 +31,115 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // TODO: Query database for contractor and calculate real match scores
-    // This is a mock implementation showing the algorithm logic
+    if (!isDatabaseEnabled()) {
+      return NextResponse.json(
+        { success: false, error: 'Matching database is not configured' },
+        { status: 503 }
+      );
+    }
 
-    const mockContractors = [
-      {
-        id: 'cont_1',
-        name: 'Premium Builders LLC',
-        rating: 4.8,
-        reviewCount: 127,
-        specialties: ['Commercial', 'Multi-Family', 'Remodeling'],
-        yearsExperience: 15,
-        completedProjects: 340,
-        responseTime: 2, // hours
-        budgetRange: { min: 50000, max: 500000 },
-        serviceRadius: 50, // miles
-        location: { city: 'Austin', state: 'TX', zipCode: '78701' },
-        availability: 'available',
-        certifications: ['Licensed', 'Insured', 'Bonded'],
-      },
-      {
-        id: 'cont_2',
-        name: 'Ace Construction Co',
-        rating: 4.6,
-        reviewCount: 89,
-        specialties: ['Residential', 'Apartment', 'Remodeling'],
-        yearsExperience: 10,
-        completedProjects: 215,
-        responseTime: 4,
-        budgetRange: { min: 20000, max: 200000 },
-        serviceRadius: 30,
-        location: { city: 'Austin', state: 'TX', zipCode: '78702' },
-        availability: 'available',
-        certifications: ['Licensed', 'Insured'],
-      },
-      {
-        id: 'cont_3',
-        name: 'Elite Renovations',
-        rating: 4.9,
-        reviewCount: 203,
-        specialties: ['Multi-Family', 'Apartment', 'Developer'],
-        yearsExperience: 20,
-        completedProjects: 520,
-        responseTime: 1,
-        budgetRange: { min: 75000, max: 1000000 },
-        serviceRadius: 75,
-        location: { city: 'Austin', state: 'TX', zipCode: '78703' },
-        availability: 'busy',
-        certifications: ['Licensed', 'Insured', 'Bonded', 'OSHA Certified'],
-      },
-    ];
+    type ContractorRow = {
+      id: string;
+      first_name: string | null;
+      last_name: string | null;
+      business_name: string | null;
+      city: string | null;
+      state: string | null;
+      zip_code: string | null;
+      specialties: string[] | null;
+      service_areas: string[] | null;
+      user_type: string;
+      subscription: {
+        status?: string;
+      } | null;
+    };
+
+    const contractors = await dbQuery<ContractorRow>(
+      `SELECT id, first_name, last_name, business_name, city, state, zip_code,
+              specialties, service_areas, user_type, subscription
+       FROM users
+       WHERE user_type = ANY($1::text[])
+         AND (subscription IS NULL OR (subscription->>'status') IN ('active', 'trial'))`,
+      [['contractor', 'commercial_builder', 'landscaper', 'school', 'developer', 'multi_family_owner', 'apartment_owner']]
+    );
 
     // Calculate match scores
-    const matchedContractors = mockContractors.map((contractor) => {
+    const matchedContractors = contractors.map((contractor) => {
       let score = 0;
-      const reasons = [];
+      const reasons: string[] = [];
+
+      const contractorName = contractor.business_name || `${contractor.first_name || ''} ${contractor.last_name || ''}`.trim() || contractor.id;
+      const contractorSpecialties = contractor.specialties || [];
+      const contractorServiceAreas = contractor.service_areas || [];
+
+      const specialtyBlob = `${projectType} ${services.join(' ')}`.toLowerCase();
 
       // 1. Specialty match (30 points)
-      const hasMatchingSpecialty = contractor.specialties.some((spec) =>
-        projectType.toLowerCase().includes(spec.toLowerCase())
+      const hasMatchingSpecialty = contractorSpecialties.some((spec) =>
+        specialtyBlob.includes(spec.toLowerCase()) || spec.toLowerCase().includes(projectType.toLowerCase())
       );
       if (hasMatchingSpecialty) {
         score += 30;
         reasons.push('Specializes in your project type');
       }
 
-      // 2. Budget compatibility (25 points)
-      const budgetFits = budget >= contractor.budgetRange.min && budget <= contractor.budgetRange.max;
-      if (budgetFits) {
+      // 2. Location compatibility (25 points)
+      const cityMatch = contractor.city?.toLowerCase() === location.city.toLowerCase();
+      const stateMatch = contractor.state?.toLowerCase() === location.state.toLowerCase();
+      const zipInServiceAreas = contractorServiceAreas.includes(location.zipCode);
+      if (cityMatch && stateMatch) {
         score += 25;
-        reasons.push('Budget matches their range');
-      } else if (budget < contractor.budgetRange.min) {
-        score += 5;
-        reasons.push('Budget below typical range');
-      } else {
+        reasons.push('Serves your exact city');
+      } else if (stateMatch || zipInServiceAreas) {
         score += 15;
-        reasons.push('Budget within capacity');
+        reasons.push('Serves your area');
       }
 
-      // 3. Rating & reviews (20 points)
-      const ratingScore = (contractor.rating / 5) * 15;
-      const reviewScore = Math.min((contractor.reviewCount / 100) * 5, 5);
-      score += ratingScore + reviewScore;
-      if (contractor.rating >= 4.7) {
-        reasons.push('Highly rated by clients');
+      // 3. Service overlap (20 points)
+      const serviceMatches = services.filter((service) =>
+        contractorSpecialties.some((spec) => spec.toLowerCase().includes(service.toLowerCase()) || service.toLowerCase().includes(spec.toLowerCase()))
+      ).length;
+      score += Math.min(20, serviceMatches * 6);
+
+      // 4. Subscription confidence (10 points)
+      const status = contractor.subscription?.status;
+      if (status === 'active') {
+        score += 10;
+        reasons.push('Active professional subscription');
+      } else if (status === 'trial') {
+        score += 6;
       }
 
-      // 4. Experience (10 points)
-      const experienceScore = Math.min((contractor.yearsExperience / 20) * 10, 10);
-      score += experienceScore;
-      if (contractor.yearsExperience >= 15) {
-        reasons.push(`${contractor.yearsExperience} years of experience`);
-      }
-
-      // 5. Response time (10 points)
-      const responseScore = Math.max(10 - contractor.responseTime * 2, 0);
-      score += responseScore;
-      if (contractor.responseTime <= 2) {
-        reasons.push('Fast response time');
-      }
-
-      // 6. Availability (5 points)
-      if (contractor.availability === 'available') {
+      // 5. Urgency compatibility (5 points)
+      if (urgency === 'high' && status === 'active') {
         score += 5;
-        reasons.push('Currently available');
-      } else if (contractor.availability === 'busy') {
-        score += 2;
-      }
-
-      // 7. Certifications bonus (bonus points)
-      if (contractor.certifications.includes('Bonded')) {
-        score += 3;
-        reasons.push('Bonded for your protection');
-      }
-      if (contractor.certifications.includes('Insured')) {
-        score += 2;
+        reasons.push('Good fit for urgent timeline');
       }
 
       // Normalize score to 0-100
       const normalizedScore = Math.min(Math.round(score), 100);
 
       return {
-        contractor,
+        contractor: {
+          id: contractor.id,
+          name: contractorName,
+          rating: null,
+          reviewCount: null,
+          specialties: contractorSpecialties,
+          yearsExperience: null,
+          completedProjects: null,
+          responseTime: null,
+          budgetRange: { min: null, max: null },
+          serviceRadius: null,
+          location: {
+            city: contractor.city,
+            state: contractor.state,
+            zipCode: contractor.zip_code,
+          },
+          availability: status === 'active' ? 'available' : 'trial',
+          certifications: [],
+          userType: contractor.user_type,
+        },
         matchScore: normalizedScore,
         matchReasons: reasons,
         recommendationLevel: 

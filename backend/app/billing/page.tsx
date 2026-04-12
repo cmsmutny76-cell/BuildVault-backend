@@ -9,7 +9,8 @@ type SubscriptionStatus = {
   status?: string;
   plan?: string;
   price?: number;
-  trialEndsAt?: string;
+  standardPrice?: number;
+  discountEndsAt?: string;
   daysRemaining?: number;
 };
 
@@ -33,6 +34,9 @@ export default function BillingPage() {
       try {
         const response = await fetch(`/api/subscription/create?userId=${encodeURIComponent(user.id)}`, {
           method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
           cache: "no-store",
         });
         const data = await response.json();
@@ -77,7 +81,8 @@ export default function BillingPage() {
             <p><span className="font-semibold">Status:</span> {subscription?.status || "none"}</p>
             <p><span className="font-semibold">Plan:</span> {subscription?.plan || "free"}</p>
             <p><span className="font-semibold">Price:</span> {typeof subscription?.price === "number" ? `$${subscription.price.toFixed(2)}` : "$0.00"}</p>
-            <p><span className="font-semibold">Trial Ends:</span> {subscription?.trialEndsAt ? new Date(subscription.trialEndsAt).toLocaleDateString() : "N/A"}</p>
+            <p><span className="font-semibold">Standard Price:</span> {typeof subscription?.standardPrice === "number" ? `$${subscription.standardPrice.toFixed(2)}` : "N/A"}</p>
+            <p><span className="font-semibold">Intro Discount Ends:</span> {subscription?.discountEndsAt ? new Date(subscription.discountEndsAt).toLocaleDateString() : "N/A"}</p>
             <p><span className="font-semibold">Days Remaining:</span> {typeof subscription?.daysRemaining === "number" ? subscription.daysRemaining : "N/A"}</p>
           </div>
         )}

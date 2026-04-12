@@ -1,14 +1,17 @@
 import { promises as fs } from 'fs';
 import path from 'path';
+import { dbQuery, isDatabaseEnabled } from '../db';
 
 export const runtime = 'nodejs';
 
 type SubscriptionRecord = {
   status: string;
   trialEndsAt?: string;
+  discountEndsAt?: string;
   daysRemaining?: number;
   plan: string;
   price: number;
+  standardPrice?: number;
 };
 
 export type StoredUser = {
@@ -27,6 +30,16 @@ export type StoredUser = {
   licenseNumber?: string;
   serviceAreas?: string[];
   specialties?: string[];
+  supplierCategories?: string[];
+  supplierAudience?: string[];
+  supplierVisibilityRestricted?: boolean;
+  supplierDescription?: string;
+  supplierSpecialServices?: string[];
+  customOrderMaterials?: string[];
+  catalogSheetUrls?: string[];
+  leadTimeDetails?: string;
+  minimumOrderQuantities?: string;
+  fabricationCapabilities?: string;
   subscription?: SubscriptionRecord | null;
   createdAt: string;
   updatedAt?: string;
@@ -256,6 +269,39 @@ const seededUsers: StoredUser[] = [
     verified: true,
     verifiedAt: new Date('2024-01-09').toISOString(),
   },
+  {
+    id: 'user_10',
+    email: 'supplier@test.com',
+    passwordHash: DEFAULT_PASSWORD_HASH,
+    firstName: 'Sam',
+    lastName: 'Supplier',
+    phone: '555-0132',
+    address: '75 Supply Park',
+    city: 'Houston',
+    state: 'TX',
+    zipCode: '77002',
+    userType: 'supplier',
+    businessName: 'BuildSource Supply Co.',
+    serviceAreas: ['Houston Metro', 'Austin', 'San Antonio'],
+    supplierCategories: ['Lumber', 'Concrete', 'Fasteners', 'Site Materials'],
+    supplierAudience: ['contractor', 'commercial_builder', 'developer', 'landscaper', 'homeowner'],
+    supplierVisibilityRestricted: true,
+    supplierDescription: 'Regional construction materials supplier with contractor pricing and jobsite delivery.',
+    supplierSpecialServices: ['Jobsite delivery', 'Takeoff assistance', 'Rush-order sourcing'],
+    customOrderMaterials: ['Custom truss packages', 'Special-order stone veneer'],
+    catalogSheetUrls: ['https://example.com/buildsource-catalog.pdf'],
+    leadTimeDetails: 'Standard materials 1-3 days, special orders 2-4 weeks depending on mill lead times.',
+    minimumOrderQuantities: 'Bulk stone and fabricated steel require minimum order quantities by item class.',
+    fabricationCapabilities: 'Cut-to-length, basic steel prep, and prefab package coordination available.',
+    subscription: {
+      status: 'active',
+      plan: 'free',
+      price: 0,
+    },
+    createdAt: new Date('2024-01-10').toISOString(),
+    verified: true,
+    verifiedAt: new Date('2024-01-10').toISOString(),
+  },
 ];
 
 const seededState: AuthStoreState = {
@@ -315,9 +361,9 @@ async function persistState(state: AuthStoreState) {
   await globalThis.__buildvaultAuthStoreWritePromise;
 }
 
-function getDaysRemaining(trialEndsAt?: string) {
-  if (!trialEndsAt) return undefined;
-  const diffMs = new Date(trialEndsAt).getTime() - Date.now();
+function getDaysRemaining(endsAt?: string) {
+  if (!endsAt) return undefined;
+  const diffMs = new Date(endsAt).getTime() - Date.now();
   return Math.max(0, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
 }
 
@@ -337,10 +383,20 @@ function buildPublicProfile(user: StoredUser) {
     licenseNumber: user.licenseNumber,
     serviceAreas: user.serviceAreas,
     specialties: user.specialties,
+    supplierCategories: user.supplierCategories,
+    supplierAudience: user.supplierAudience,
+    supplierVisibilityRestricted: user.supplierVisibilityRestricted,
+    supplierDescription: user.supplierDescription,
+    supplierSpecialServices: user.supplierSpecialServices,
+    customOrderMaterials: user.customOrderMaterials,
+    catalogSheetUrls: user.catalogSheetUrls,
+    leadTimeDetails: user.leadTimeDetails,
+    minimumOrderQuantities: user.minimumOrderQuantities,
+    fabricationCapabilities: user.fabricationCapabilities,
     subscription: user.subscription
       ? {
           ...user.subscription,
-          daysRemaining: getDaysRemaining(user.subscription.trialEndsAt),
+          daysRemaining: getDaysRemaining(user.subscription.discountEndsAt || user.subscription.trialEndsAt),
         }
       : undefined,
     createdAt: user.createdAt,
@@ -350,17 +406,268 @@ function buildPublicProfile(user: StoredUser) {
   };
 }
 
+// ============================================================
+// PostgreSQL implementations (used when DATABASE_URL is set)
+// ============================================================
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToStoredUser(row: Record<string, any>): StoredUser {
+  return {
+    id: row.id,
+    email: row.email,
+    passwordHash: row.password_hash,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    phone: row.phone ?? undefined,
+    address: row.address ?? undefined,
+    city: row.city ?? undefined,
+    state: row.state ?? undefined,
+    zipCode: row.zip_code ?? undefined,
+    userType: row.user_type,
+    businessName: row.business_name ?? undefined,
+    licenseNumber: row.license_number ?? undefined,
+    serviceAreas: row.service_areas ?? undefined,
+    specialties: row.specialties ?? undefined,
+    supplierCategories: row.supplier_categories ?? undefined,
+    supplierAudience: row.supplier_audience ?? undefined,
+    supplierVisibilityRestricted: row.supplier_visibility_restricted ?? undefined,
+    supplierDescription: row.supplier_description ?? undefined,
+    supplierSpecialServices: row.supplier_special_services ?? undefined,
+    customOrderMaterials: row.custom_order_materials ?? undefined,
+    catalogSheetUrls: row.catalog_sheet_urls ?? undefined,
+    leadTimeDetails: row.lead_time_details ?? undefined,
+    minimumOrderQuantities: row.minimum_order_quantities ?? undefined,
+    fabricationCapabilities: row.fabrication_capabilities ?? undefined,
+    subscription: row.subscription ?? undefined,
+    verified: row.verified,
+    verifiedAt: row.verified_at ? new Date(row.verified_at).toISOString() : undefined,
+    createdAt: new Date(row.created_at).toISOString(),
+    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined,
+  };
+}
+
+async function dbFindUserByEmail(email: string): Promise<StoredUser | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = await dbQuery<Record<string, any>>('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
+  return rows[0] ? rowToStoredUser(rows[0]) : null;
+}
+
+async function dbFindUserById(userId: string): Promise<StoredUser | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = await dbQuery<Record<string, any>>('SELECT * FROM users WHERE id = $1', [userId]);
+  return rows[0] ? rowToStoredUser(rows[0]) : null;
+}
+
+async function dbCreateUser(user: StoredUser): Promise<StoredUser> {
+  const existing = await dbFindUserByEmail(user.email);
+  if (existing) throw new Error('User with this email already exists');
+
+  await dbQuery(
+    `INSERT INTO users (
+       id, email, password_hash, first_name, last_name, phone, address, city, state, zip_code,
+       user_type, business_name, license_number, service_areas, specialties,
+       supplier_categories, supplier_audience, supplier_visibility_restricted,
+       supplier_description, supplier_special_services, custom_order_materials, catalog_sheet_urls,
+       lead_time_details, minimum_order_quantities, fabrication_capabilities,
+       subscription, verified, verified_at, created_at
+     ) VALUES (
+       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+       $11, $12, $13, $14, $15,
+       $16, $17, $18,
+       $19, $20, $21, $22,
+       $23, $24, $25,
+       $26, $27, $28, $29
+     )`,
+    [
+      user.id,
+      user.email.toLowerCase(),
+      user.passwordHash,
+      user.firstName,
+      user.lastName,
+      user.phone ?? null,
+      user.address ?? null,
+      user.city ?? null,
+      user.state ?? null,
+      user.zipCode ?? null,
+      user.userType,
+      user.businessName ?? null,
+      user.licenseNumber ?? null,
+      user.serviceAreas ?? null,
+      user.specialties ?? null,
+      user.supplierCategories ?? null,
+      user.supplierAudience ?? null,
+      user.supplierVisibilityRestricted ?? false,
+      user.supplierDescription ?? null,
+      user.supplierSpecialServices ?? null,
+      user.customOrderMaterials ?? null,
+      user.catalogSheetUrls ?? null,
+      user.leadTimeDetails ?? null,
+      user.minimumOrderQuantities ?? null,
+      user.fabricationCapabilities ?? null,
+      user.subscription ? JSON.stringify(user.subscription) : null,
+      user.verified,
+      user.verifiedAt ? new Date(user.verifiedAt) : null,
+      new Date(user.createdAt),
+    ]
+  );
+
+  return (await dbFindUserByEmail(user.email))!;
+}
+
+async function dbUpdateUserByEmail(email: string, updates: Partial<StoredUser>): Promise<StoredUser | null> {
+  const fieldMap: Record<string, string> = {
+    passwordHash: 'password_hash',
+    firstName: 'first_name',
+    lastName: 'last_name',
+    phone: 'phone',
+    address: 'address',
+    city: 'city',
+    state: 'state',
+    zipCode: 'zip_code',
+    userType: 'user_type',
+    businessName: 'business_name',
+    licenseNumber: 'license_number',
+    serviceAreas: 'service_areas',
+    specialties: 'specialties',
+    supplierCategories: 'supplier_categories',
+    supplierAudience: 'supplier_audience',
+    supplierVisibilityRestricted: 'supplier_visibility_restricted',
+    supplierDescription: 'supplier_description',
+    supplierSpecialServices: 'supplier_special_services',
+    customOrderMaterials: 'custom_order_materials',
+    catalogSheetUrls: 'catalog_sheet_urls',
+    leadTimeDetails: 'lead_time_details',
+    minimumOrderQuantities: 'minimum_order_quantities',
+    fabricationCapabilities: 'fabrication_capabilities',
+    subscription: 'subscription',
+    verified: 'verified',
+    verifiedAt: 'verified_at',
+  };
+
+  const setClauses: string[] = [];
+  const params: unknown[] = [];
+  let paramIdx = 1;
+
+  for (const [key, value] of Object.entries(updates)) {
+    const col = fieldMap[key];
+    if (!col || value === undefined) continue;
+
+    setClauses.push(`${col} = $${paramIdx++}`);
+
+    if (key === 'subscription') {
+      params.push(value !== null ? JSON.stringify(value) : null);
+    } else if (key === 'verifiedAt') {
+      params.push(value ? new Date(value as string) : null);
+    } else {
+      params.push(value);
+    }
+  }
+
+  if (setClauses.length === 0) return dbFindUserByEmail(email);
+
+  setClauses.push(`updated_at = NOW()`);
+  params.push(email.toLowerCase());
+
+  await dbQuery(`UPDATE users SET ${setClauses.join(', ')} WHERE email = $${paramIdx}`, params);
+  return dbFindUserByEmail(email);
+}
+
+async function dbUpdateUserById(userId: string, updates: Partial<StoredUser>): Promise<StoredUser | null> {
+  const user = await dbFindUserById(userId);
+  if (!user) return null;
+  return dbUpdateUserByEmail(user.email, updates);
+}
+
+async function dbCreateVerificationToken(token: string, data: VerificationTokenRecord): Promise<void> {
+  await dbQuery(
+    `INSERT INTO verification_tokens (token, user_id, email, expires_at)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (token) DO UPDATE SET user_id = $2, email = $3, expires_at = $4`,
+    [token, data.userId, data.email, data.expiresAt]
+  );
+}
+
+async function dbGetVerificationToken(token: string): Promise<VerificationTokenRecord | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = await dbQuery<Record<string, any>>('SELECT * FROM verification_tokens WHERE token = $1', [token]);
+  if (!rows[0]) return null;
+  return { userId: rows[0].user_id, email: rows[0].email, expiresAt: Number(rows[0].expires_at) };
+}
+
+async function dbDeleteVerificationToken(token: string): Promise<void> {
+  await dbQuery('DELETE FROM verification_tokens WHERE token = $1', [token]);
+}
+
+async function dbCreatePasswordResetToken(token: string, data: PasswordResetTokenRecord): Promise<void> {
+  await dbQuery(
+    `INSERT INTO password_reset_tokens (token, email, expires_at)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (token) DO UPDATE SET email = $2, expires_at = $3`,
+    [token, data.email, data.expiresAt]
+  );
+}
+
+async function dbGetPasswordResetToken(token: string): Promise<PasswordResetTokenRecord | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = await dbQuery<Record<string, any>>('SELECT * FROM password_reset_tokens WHERE token = $1', [token]);
+  if (!rows[0]) return null;
+  return { email: rows[0].email, expiresAt: Number(rows[0].expires_at) };
+}
+
+async function dbDeletePasswordResetToken(token: string): Promise<void> {
+  await dbQuery('DELETE FROM password_reset_tokens WHERE token = $1', [token]);
+}
+
+async function dbGetVisibleSuppliersForViewer(viewerType: string) {
+  const rows = await dbQuery<Record<string, any>>(
+    `SELECT * FROM users
+     WHERE user_type = 'supplier'
+       AND (supplier_visibility_restricted = false OR $1 = ANY(supplier_audience))`,
+    [viewerType]
+  );
+  return rows.map(rowToStoredUser).map((user) => ({
+    id: user.id,
+    businessName: user.businessName || `${user.firstName} ${user.lastName}`.trim(),
+    supplierDescription: user.supplierDescription,
+    city: user.city,
+    state: user.state,
+    phone: user.phone,
+    email: user.email,
+    supplierCategories: user.supplierCategories || [],
+    serviceAreas: user.serviceAreas || [],
+    supplierSpecialServices: user.supplierSpecialServices || [],
+    customOrderMaterials: user.customOrderMaterials || [],
+    catalogSheetUrls: user.catalogSheetUrls || [],
+    leadTimeDetails: user.leadTimeDetails,
+    minimumOrderQuantities: user.minimumOrderQuantities,
+    fabricationCapabilities: user.fabricationCapabilities,
+    supplierVisibilityRestricted: user.supplierVisibilityRestricted,
+    supplierAudience: (user.supplierAudience || []) as Array<
+      | 'homeowner' | 'employment_seeker' | 'contractor' | 'supplier'
+      | 'commercial_builder' | 'multi_family_owner' | 'apartment_owner'
+      | 'developer' | 'landscaper' | 'school'
+    >,
+  }));
+}
+
+// ============================================================
+// File-based store (used for local dev without DATABASE_URL)
+// ============================================================
+
 export async function findUserByEmail(email: string) {
+  if (isDatabaseEnabled()) return dbFindUserByEmail(email);
   const state = await getState();
   return state.usersByEmail[email.toLowerCase()] || null;
 }
 
 export async function findUserById(userId: string) {
+  if (isDatabaseEnabled()) return dbFindUserById(userId);
   const state = await getState();
   return Object.values(state.usersByEmail).find((user) => user.id === userId) || null;
 }
 
 export async function createUser(user: StoredUser) {
+  if (isDatabaseEnabled()) return dbCreateUser(user);
   const state = await getState();
   const emailKey = user.email.toLowerCase();
   if (state.usersByEmail[emailKey]) {
@@ -380,6 +687,7 @@ export async function createUser(user: StoredUser) {
 }
 
 export async function updateUserByEmail(email: string, updates: Partial<StoredUser>) {
+  if (isDatabaseEnabled()) return dbUpdateUserByEmail(email, updates);
   const state = await getState();
   const emailKey = email.toLowerCase();
   const existing = state.usersByEmail[emailKey];
@@ -407,6 +715,7 @@ export async function updateUserByEmail(email: string, updates: Partial<StoredUs
 }
 
 export async function updateUserById(userId: string, updates: Partial<StoredUser>) {
+  if (isDatabaseEnabled()) return dbUpdateUserById(userId, updates);
   const user = await findUserById(userId);
   if (!user) {
     return null;
@@ -416,6 +725,7 @@ export async function updateUserById(userId: string, updates: Partial<StoredUser
 }
 
 export async function createVerificationToken(token: string, tokenData: VerificationTokenRecord) {
+  if (isDatabaseEnabled()) return dbCreateVerificationToken(token, tokenData);
   const state = await getState();
   const nextState: AuthStoreState = {
     ...state,
@@ -428,11 +738,13 @@ export async function createVerificationToken(token: string, tokenData: Verifica
 }
 
 export async function getVerificationToken(token: string) {
+  if (isDatabaseEnabled()) return dbGetVerificationToken(token);
   const state = await getState();
   return state.verificationTokens[token] || null;
 }
 
 export async function deleteVerificationToken(token: string) {
+  if (isDatabaseEnabled()) return dbDeleteVerificationToken(token);
   const state = await getState();
   if (!state.verificationTokens[token]) return;
   const nextTokens = { ...state.verificationTokens };
@@ -444,6 +756,7 @@ export async function deleteVerificationToken(token: string) {
 }
 
 export async function createPasswordResetToken(token: string, tokenData: PasswordResetTokenRecord) {
+  if (isDatabaseEnabled()) return dbCreatePasswordResetToken(token, tokenData);
   const state = await getState();
   const nextState: AuthStoreState = {
     ...state,
@@ -456,11 +769,13 @@ export async function createPasswordResetToken(token: string, tokenData: Passwor
 }
 
 export async function getPasswordResetToken(token: string) {
+  if (isDatabaseEnabled()) return dbGetPasswordResetToken(token);
   const state = await getState();
   return state.passwordResetTokens[token] || null;
 }
 
 export async function deletePasswordResetToken(token: string) {
+  if (isDatabaseEnabled()) return dbDeletePasswordResetToken(token);
   const state = await getState();
   if (!state.passwordResetTokens[token]) return;
   const nextTokens = { ...state.passwordResetTokens };
@@ -499,6 +814,11 @@ export async function updatePublicProfile(
     id?: string;
     serviceAreas?: unknown;
     specialties?: unknown;
+    supplierCategories?: unknown;
+    supplierAudience?: unknown;
+    supplierSpecialServices?: unknown;
+    customOrderMaterials?: unknown;
+    catalogSheetUrls?: unknown;
   }
 ) {
   if (!profileData.id) {
@@ -518,10 +838,52 @@ export async function updatePublicProfile(
     licenseNumber: profileData.licenseNumber,
     serviceAreas: parseStringArray(profileData.serviceAreas),
     specialties: parseStringArray(profileData.specialties),
+    supplierCategories: parseStringArray(profileData.supplierCategories),
+    supplierAudience: parseStringArray(profileData.supplierAudience),
+    supplierVisibilityRestricted: profileData.supplierVisibilityRestricted,
+    supplierDescription: profileData.supplierDescription,
+    supplierSpecialServices: parseStringArray(profileData.supplierSpecialServices),
+    customOrderMaterials: parseStringArray(profileData.customOrderMaterials),
+    catalogSheetUrls: parseStringArray(profileData.catalogSheetUrls),
+    leadTimeDetails: profileData.leadTimeDetails,
+    minimumOrderQuantities: profileData.minimumOrderQuantities,
+    fabricationCapabilities: profileData.fabricationCapabilities,
   };
 
   const updatedUser = await updateUserById(profileData.id, updates);
   return updatedUser ? buildPublicProfile(updatedUser) : null;
+}
+
+export async function getVisibleSuppliersForViewer(viewerType: string) {
+  if (isDatabaseEnabled()) return dbGetVisibleSuppliersForViewer(viewerType);
+  const state = await getState();
+  return Object.values(state.usersByEmail)
+    .filter((user) => user.userType === 'supplier')
+    .filter((user) => {
+      if (!user.supplierVisibilityRestricted) return true;
+      return Array.isArray(user.supplierAudience) && user.supplierAudience.includes(viewerType);
+    })
+    .map((user) => ({
+      id: user.id,
+      businessName: user.businessName || `${user.firstName} ${user.lastName}`.trim(),
+      supplierDescription: user.supplierDescription,
+      city: user.city,
+      state: user.state,
+      phone: user.phone,
+      email: user.email,
+      supplierCategories: user.supplierCategories || [],
+      serviceAreas: user.serviceAreas || [],
+      supplierSpecialServices: user.supplierSpecialServices || [],
+      customOrderMaterials: user.customOrderMaterials || [],
+      catalogSheetUrls: user.catalogSheetUrls || [],
+      leadTimeDetails: user.leadTimeDetails,
+      minimumOrderQuantities: user.minimumOrderQuantities,
+      fabricationCapabilities: user.fabricationCapabilities,
+      supplierVisibilityRestricted: user.supplierVisibilityRestricted,
+      supplierAudience: (user.supplierAudience || []) as Array<
+        'homeowner' | 'employment_seeker' | 'contractor' | 'supplier' | 'commercial_builder' | 'multi_family_owner' | 'apartment_owner' | 'developer' | 'landscaper' | 'school'
+      >,
+    }));
 }
 
 export function generateToken(length = 32) {

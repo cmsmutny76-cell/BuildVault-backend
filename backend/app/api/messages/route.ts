@@ -1,5 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
+import jwt from 'jsonwebtoken';
 import { sendNewMessageEmail } from '../../../lib/email';
+import { dbQuery, isDatabaseEnabled } from '../../../lib/db';
+import { randomUUID } from 'crypto';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+function getAuthenticatedUserId(request: NextRequest): string | null {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.slice('Bearer '.length).trim();
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload & { userId?: string };
+    return typeof decoded.userId === 'string' ? decoded.userId : null;
+  } catch {
+    // Dev fallback token support from auth/login route
+    try {
+      const parsed = JSON.parse(Buffer.from(token, 'base64url').toString('utf8')) as {
+        userId?: string;
+        exp?: number;
+      };
+
+      if (typeof parsed.exp === 'number' && Date.now() > parsed.exp) {
+        return null;
+      }
+
+      return typeof parsed.userId === 'string' ? parsed.userId : null;
+    } catch {
+      return null;
+    }
+  }
+}
 
 /**
  * GET /api/messages
@@ -7,9 +42,25 @@ import { sendNewMessageEmail } from '../../../lib/email';
  */
 export async function GET(request: NextRequest) {
   try {
+    const authenticatedUserId = getAuthenticatedUserId(request);
+    if (!authenticatedUserId) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const requestedUserId = searchParams.get('userId');
+    const userId = requestedUserId || authenticatedUserId;
     const conversationId = searchParams.get('conversationId');
+
+    if (requestedUserId && requestedUserId !== authenticatedUserId) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden: user mismatch' },
+        { status: 403 }
+      );
+    }
 
     if (!userId) {
       return NextResponse.json(
@@ -18,103 +69,124 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (!isDatabaseEnabled()) {
+      return NextResponse.json(
+        { success: false, error: 'Messaging database is not configured' },
+        { status: 503 }
+      );
+    }
+
     // If conversationId provided, return messages for that conversation
     if (conversationId) {
-      // TODO: Query database for messages in conversation
-      const mockMessages = [
-        {
-          id: 'msg_1',
-          conversationId,
-          senderId: 'user_1',
-          receiverId: 'user_2',
-          content: 'Hi, I received your quote for the kitchen remodel. I have a few questions.',
-          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-          read: true,
-          attachments: [],
-        },
-        {
-          id: 'msg_2',
-          conversationId,
-          senderId: 'user_2',
-          receiverId: 'user_1',
-          content: 'Of course! I\'d be happy to answer any questions you have.',
-          timestamp: new Date(Date.now() - 1.5 * 60 * 60 * 1000).toISOString(),
-          read: true,
-          attachments: [],
-        },
-        {
-          id: 'msg_3',
-          conversationId,
-          senderId: 'user_1',
-          receiverId: 'user_2',
-          content: 'Can we use different cabinet materials to reduce the cost?',
-          timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-          read: true,
-          attachments: [],
-        },
-        {
-          id: 'msg_4',
-          conversationId,
-          senderId: 'user_2',
-          receiverId: 'user_1',
-          content: 'Absolutely! We can look at some alternatives. I can prepare a revised quote with different cabinet options.',
-          timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-          read: false,
-          attachments: [],
-        },
-      ];
+      type MessageRow = {
+        id: string;
+        conversation_id: string;
+        sender_id: string;
+        recipient_id: string;
+        content: string;
+        created_at: Date;
+        read: boolean;
+      };
 
-      return NextResponse.json({
-        success: true,
-        messages: mockMessages,
-      });
+      const rows = await dbQuery<MessageRow>(
+        `SELECT id, conversation_id, sender_id, recipient_id, content, created_at, read
+         FROM messages
+         WHERE conversation_id = $1
+           AND (sender_id = $2 OR recipient_id = $2)
+         ORDER BY created_at ASC`,
+        [conversationId, userId]
+      );
+
+      const messages = rows.map((row) => ({
+        id: row.id,
+        conversationId: row.conversation_id,
+        senderId: row.sender_id,
+        receiverId: row.recipient_id,
+        content: row.content,
+        timestamp: new Date(row.created_at).toISOString(),
+        read: row.read,
+        attachments: [],
+      }));
+
+      return NextResponse.json({ success: true, messages });
     }
 
     // Otherwise, return list of conversations
-    // TODO: Query database for conversations
-    const mockConversations = [
-      {
-        id: 'conv_1',
-        participants: ['user_1', 'user_2'],
-        participantInfo: {
-          id: 'user_2',
-          name: 'John Builder',
-          type: 'contractor',
-          avatar: '👷',
-        },
-        projectId: 'proj_1',
-        projectTitle: 'Kitchen Remodel',
-        lastMessage: {
-          content: 'Absolutely! We can look at some alternatives.',
-          timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-          senderId: 'user_2',
-        },
-        unreadCount: 1,
-      },
-      {
-        id: 'conv_2',
-        participants: ['user_1', 'user_3'],
-        participantInfo: {
-          id: 'user_3',
-          name: 'Premium Builders LLC',
-          type: 'contractor',
-          avatar: '🏗️',
-        },
-        projectId: 'proj_2',
-        projectTitle: 'Bathroom Renovation',
-        lastMessage: {
-          content: 'I\'ve sent you the updated timeline',
-          timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-          senderId: 'user_3',
-        },
-        unreadCount: 0,
-      },
-    ];
+    type ConversationRow = {
+      conversation_id: string;
+      sender_id: string;
+      recipient_id: string;
+      content: string;
+      created_at: Date;
+      read: boolean;
+    };
 
-    return NextResponse.json({
-      success: true,
-      conversations: mockConversations,
+    const rows = await dbQuery<ConversationRow>(
+      `SELECT conversation_id, sender_id, recipient_id, content, created_at, read
+       FROM messages
+       WHERE sender_id = $1 OR recipient_id = $1
+       ORDER BY created_at DESC`,
+      [userId]
+    );
+
+    const map = new Map<string, {
+      id: string;
+      participantId: string;
+      lastMessage: { content: string; timestamp: string; senderId: string };
+      unreadCount: number;
+    }>();
+
+    for (const row of rows) {
+      const participantId = row.sender_id === userId ? row.recipient_id : row.sender_id;
+      const existing = map.get(row.conversation_id);
+
+      if (!existing) {
+        map.set(row.conversation_id, {
+          id: row.conversation_id,
+          participantId,
+          lastMessage: {
+            content: row.content,
+            timestamp: new Date(row.created_at).toISOString(),
+            senderId: row.sender_id,
+          },
+          unreadCount: row.recipient_id === userId && !row.read ? 1 : 0,
+        });
+      } else if (row.recipient_id === userId && !row.read) {
+        existing.unreadCount += 1;
+      }
+    }
+
+    const participantIds = Array.from(new Set(Array.from(map.values()).map((c) => c.participantId)));
+
+    type UserRow = { id: string; first_name: string | null; last_name: string | null; user_type: string | null };
+    const users = participantIds.length
+      ? await dbQuery<UserRow>(
+          'SELECT id, first_name, last_name, user_type FROM users WHERE id = ANY($1::text[])',
+          [participantIds]
+        )
+      : [];
+
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    const conversations = Array.from(map.values()).map((conv) => {
+      const participant = userMap.get(conv.participantId);
+      return {
+        id: conv.id,
+        participants: [userId, conv.participantId],
+        participantInfo: {
+          id: conv.participantId,
+          name: participant ? `${participant.first_name || ''} ${participant.last_name || ''}`.trim() || conv.participantId : conv.participantId,
+          type: participant?.user_type || 'user',
+          avatar: '👤',
+        },
+        projectId: null,
+        projectTitle: 'General Conversation',
+        lastMessage: conv.lastMessage,
+        unreadCount: conv.unreadCount,
+      };
     });
+
+    return NextResponse.json({ success: true, conversations });
   } catch (error) {
     console.error('Get messages error:', error);
     return NextResponse.json(
@@ -130,6 +202,14 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const authenticatedUserId = getAuthenticatedUserId(request);
+    if (!authenticatedUserId) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const data = await request.json();
     const { conversationId, senderId, receiverId, content, projectId, attachments } = data;
 
@@ -140,10 +220,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create new message
+    if (senderId !== authenticatedUserId) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden: sender mismatch' },
+        { status: 403 }
+      );
+    }
+
+    if (!isDatabaseEnabled()) {
+      return NextResponse.json(
+        { success: false, error: 'Messaging database is not configured' },
+        { status: 503 }
+      );
+    }
+
+    // Create and persist new message
+    const messageId = `msg_${Date.now()}_${randomUUID().slice(0, 8)}`;
+    const computedConversationId = conversationId || `conv_${[senderId, receiverId].sort().join('_')}${projectId ? `_${projectId}` : ''}`;
+
+    await dbQuery(
+      `INSERT INTO messages (id, conversation_id, sender_id, recipient_id, content, read, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+      [messageId, computedConversationId, senderId, receiverId, content, false]
+    );
+
     const message = {
-      id: 'msg_' + Date.now(),
-      conversationId: conversationId || `conv_${senderId}_${receiverId}_${projectId}`,
+      id: messageId,
+      conversationId: computedConversationId,
       senderId,
       receiverId,
       content,
@@ -153,34 +256,31 @@ export async function POST(request: NextRequest) {
       attachments: attachments || [],
     };
 
-    // TODO: Save to database
-    // TODO: Use WebSocket or Server-Sent Events for real-time delivery
-    
-    // Mock user data - Replace with actual database fetch
-    const mockSender = {
-      name: 'John Doe',
-    };
-    
-    const mockReceiver = {
-      email: 'recipient@example.com',
-      name: 'Jane Smith',
-    };
-    
-    const mockProject = {
-      title: 'Kitchen Remodel',
-    };
+    type UserEmailRow = { id: string; first_name: string | null; last_name: string | null; email: string };
+    const users = await dbQuery<UserEmailRow>(
+      'SELECT id, first_name, last_name, email FROM users WHERE id = ANY($1::text[])',
+      [[senderId, receiverId]]
+    );
+
+    const sender = users.find((u) => u.id === senderId);
+    const receiver = users.find((u) => u.id === receiverId);
+
+    const senderName = sender ? `${sender.first_name || ''} ${sender.last_name || ''}`.trim() || senderId : senderId;
+    const receiverName = receiver ? `${receiver.first_name || ''} ${receiver.last_name || ''}`.trim() || receiverId : receiverId;
 
     // Send email notification to receiver
-    const emailResult = await sendNewMessageEmail(
-      mockReceiver.email,
-      mockReceiver.name,
-      mockSender.name,
-      content,
-      message.conversationId
-    );
-    
-    if (!emailResult.success) {
-      console.error('Failed to send message notification email');
+    if (receiver?.email) {
+      const emailResult = await sendNewMessageEmail(
+        receiver.email,
+        receiverName,
+        senderName,
+        content,
+        message.conversationId
+      );
+
+      if (!emailResult.success) {
+        console.error('Failed to send message notification email');
+      }
     }
 
     return NextResponse.json({
@@ -202,6 +302,14 @@ export async function POST(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
+    const authenticatedUserId = getAuthenticatedUserId(request);
+    if (!authenticatedUserId) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const data = await request.json();
     const { messageIds, userId } = data;
 
@@ -212,12 +320,33 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // TODO: Update messages in database to mark as read
-    // TODO: Only mark messages where receiver is userId
+    if (!userId || userId !== authenticatedUserId) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden: user mismatch' },
+        { status: 403 }
+      );
+    }
+
+    if (!isDatabaseEnabled()) {
+      return NextResponse.json(
+        { success: false, error: 'Messaging database is not configured' },
+        { status: 503 }
+      );
+    }
+
+    type UpdatedRow = { id: string };
+    const updated = await dbQuery<UpdatedRow>(
+      `UPDATE messages
+       SET read = true
+       WHERE id = ANY($1::text[])
+         AND recipient_id = $2
+       RETURNING id`,
+      [messageIds, userId]
+    );
 
     return NextResponse.json({
       success: true,
-      markedCount: messageIds.length,
+      markedCount: updated.length,
     });
   } catch (error) {
     console.error('Mark messages read error:', error);

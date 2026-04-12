@@ -69,8 +69,11 @@ export default function ProjectDetailsScreen({ onBack, addressId }: ProjectDetai
 
         <View style={styles.placeholder}>
           <Text style={styles.placeholderText}>
-            Full project tracking with timeline, budget, photos, and contractor updates coming soon.
+            Full project tracking is in active beta. You can continue testing with project selection and estimate flows.
           </Text>
+          <TouchableOpacity style={styles.actionButton} onPress={onBack}>
+            <Text style={styles.actionButtonText}>Return to Projects</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -197,5 +200,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     textAlign: 'center',
+    marginBottom: 14,
+  },
+  actionButton: {
+    backgroundColor: '#D4AF37',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  actionButtonText: {
+    color: '#0f172a',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

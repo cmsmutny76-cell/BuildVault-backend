@@ -7,6 +7,36 @@ export const runtime = 'nodejs';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
+// In-memory rate limiter: max 10 login attempts per IP per 15 minutes
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_MAX = 10;
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+
+function getRateLimitKey(request: NextRequest): string {
+  return (
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    'unknown'
+  );
+}
+
+function checkRateLimit(key: string): { allowed: boolean; retryAfterSeconds: number } {
+  const now = Date.now();
+  const entry = loginAttempts.get(key);
+
+  if (!entry || now >= entry.resetAt) {
+    loginAttempts.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true, retryAfterSeconds: 0 };
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return { allowed: false, retryAfterSeconds: Math.ceil((entry.resetAt - now) / 1000) };
+  }
+
+  entry.count += 1;
+  return { allowed: true, retryAfterSeconds: 0 };
+}
+
 function createFallbackToken(user: { id: string; email: string; userType: string }) {
   return Buffer.from(
     JSON.stringify({
@@ -21,6 +51,19 @@ function createFallbackToken(user: { id: string; email: string; userType: string
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting
+    const ipKey = getRateLimitKey(request);
+    const { allowed, retryAfterSeconds } = checkRateLimit(ipKey);
+    if (!allowed) {
+      return NextResponse.json(
+        { success: false, error: 'Too many login attempts. Please try again later.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(retryAfterSeconds) },
+        }
+      );
+    }
+
     const body = await request.json();
     const { email, password } = body;
 

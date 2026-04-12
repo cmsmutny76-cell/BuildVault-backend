@@ -312,7 +312,7 @@ All the UI is ready - just swap out the mock data imports with real API calls!
 
 ## 📝 Next Steps for Full Implementation
 
-From TODO.md, remaining high-priority items:
+From BUILDVAULT_TODO.md, remaining high-priority items:
 
 ### Backend Integration:
 - [ ] Set up database schema for contractors, projects, estimates

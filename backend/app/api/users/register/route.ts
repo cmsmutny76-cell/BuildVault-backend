@@ -6,18 +6,52 @@ import { createUser, createVerificationToken, findUserByEmail, generateToken, ty
 
 export const runtime = 'nodejs';
 
+// In-memory rate limiter: max 5 registrations per IP per hour
+const registerAttempts = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+
+function getRateLimitKey(request: NextRequest): string {
+  return (
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    'unknown'
+  );
+}
+
+function checkRateLimit(key: string): { allowed: boolean; retryAfterSeconds: number } {
+  const now = Date.now();
+  const entry = registerAttempts.get(key);
+
+  if (!entry || now >= entry.resetAt) {
+    registerAttempts.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true, retryAfterSeconds: 0 };
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return { allowed: false, retryAfterSeconds: Math.ceil((entry.resetAt - now) / 1000) };
+  }
+
+  entry.count += 1;
+  return { allowed: true, retryAfterSeconds: 0 };
+}
+
+const INTRO_MONTHLY_PRICE = 10;
+const INTRO_PERIOD_DAYS = 90;
+
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
-const SUBSCRIPTION_PLANS: Record<string, { plan: string; price: number } | null> = {
+const SUBSCRIPTION_PLANS: Record<string, { plan: string; standardPrice: number } | null> = {
   homeowner: null,
   employment_seeker: null,
-  contractor: { plan: 'contractor_pro', price: 49.99 },
-  commercial_builder: { plan: 'commercial_pro', price: 99.99 },
-  multi_family_owner: { plan: 'commercial_pro', price: 99.99 },
-  apartment_owner: { plan: 'commercial_pro', price: 99.99 },
-  developer: { plan: 'commercial_pro', price: 99.99 },
-  landscaper: { plan: 'landscaper_pro', price: 49.99 },
-  school: { plan: 'school_pro', price: 49.99 },
+  contractor: { plan: 'contractor_pro', standardPrice: 49.99 },
+  supplier: null,
+  commercial_builder: { plan: 'commercial_pro', standardPrice: 99.99 },
+  multi_family_owner: { plan: 'commercial_pro', standardPrice: 99.99 },
+  apartment_owner: { plan: 'commercial_pro', standardPrice: 99.99 },
+  developer: { plan: 'commercial_pro', standardPrice: 99.99 },
+  landscaper: { plan: 'landscaper_pro', standardPrice: 49.99 },
+  school: { plan: 'school_pro', standardPrice: 49.99 },
 };
 
 /**
@@ -26,6 +60,19 @@ const SUBSCRIPTION_PLANS: Record<string, { plan: string; price: number } | null>
  */
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting
+    const ipKey = getRateLimitKey(request);
+    const { allowed, retryAfterSeconds } = checkRateLimit(ipKey);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Too many registration attempts. Please try again later.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(retryAfterSeconds) },
+        }
+      );
+    }
+
     const userData = await request.json();
 
     const {
@@ -44,6 +91,12 @@ export async function POST(request: NextRequest) {
       licenseNumber,
       serviceAreas,
       specialties,
+      supplierCategories,
+      supplierAudience,
+      supplierVisibilityRestricted,
+      supplierDescription,
+      supplierSpecialServices,
+      customOrderMaterials,
     } = userData;
 
     // Validate required fields
@@ -55,9 +108,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate password length
-    if (password.length < 6) {
+    if (password.length < 8) {
       return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
+        { error: 'Password must be at least 8 characters' },
         { status: 400 }
       );
     }
@@ -95,17 +148,18 @@ export async function POST(request: NextRequest) {
     // Create user
     const userId = 'user_' + Date.now();
     
-    // Create trial subscription for paid account types
+    // Create introductory discounted subscription for paid account types
     let subscription = null;
     if (subscriptionPlan) {
-      const trialEndDate = new Date();
-      trialEndDate.setDate(trialEndDate.getDate() + 30); // 30-day trial
+      const discountEndDate = new Date();
+      discountEndDate.setDate(discountEndDate.getDate() + INTRO_PERIOD_DAYS);
 
       subscription = {
-        status: 'trial',
-        trialEndsAt: trialEndDate.toISOString(),
+        status: 'active',
+        discountEndsAt: discountEndDate.toISOString(),
         plan: subscriptionPlan.plan,
-        price: subscriptionPlan.price,
+        price: INTRO_MONTHLY_PRICE,
+        standardPrice: subscriptionPlan.standardPrice,
       };
     }
 
@@ -122,11 +176,17 @@ export async function POST(request: NextRequest) {
       state,
       zipCode,
       userType: normalizedUserType,
-      ...(subscriptionPlan && {
+      ...((subscriptionPlan || normalizedUserType === 'supplier' || normalizedUserType === 'contractor') && {
         businessName,
         licenseNumber,
         serviceAreas,
         specialties,
+        supplierCategories,
+        supplierAudience,
+        supplierVisibilityRestricted,
+        supplierDescription,
+        supplierSpecialServices,
+        customOrderMaterials,
         subscription,
       }),
       createdAt: new Date().toISOString(),
@@ -178,7 +238,7 @@ export async function POST(request: NextRequest) {
         verified: user.verified,
       },
       message: subscriptionPlan
-        ? `30-day free trial activated for ${subscriptionPlan.plan}! Please check your email to verify your account.`
+        ? `90-day intro pricing activated at $10/month for ${subscriptionPlan.plan}! Please check your email to verify your account.`
         : 'Account created successfully! Please check your email to verify your account.',
     });
   } catch (error) {

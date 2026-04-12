@@ -1,30 +1,19 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
+import WebPageBrandHeader from "../components/WebPageBrandHeader";
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-900 to-zinc-800 text-white flex flex-col items-center justify-center px-6">
       {/* Container */}
       <div className="flex flex-col items-center gap-8 max-w-2xl w-full">
-        {/* Logo */}
-        <div className="w-96 h-96 flex items-center justify-center">
-          <Image
-            src="/buildvault-logo-professional.png"
-            alt="BuildVault Logo"
-            width={600}
-            height={600}
-            priority
-            className="w-full h-full object-contain"
-          />
-        </div>
-
-        {/* Title */}
-        <div className="text-center">
-          <h1 className="text-4xl font-bold">BuildVault</h1>
-          <p className="mt-2 text-zinc-400">Construction Project Management</p>
-        </div>
+        <WebPageBrandHeader
+          title="BuildVault"
+          subtitle="Construction Project Management"
+          textClassName="text-white"
+          subtitleClassName="text-zinc-400"
+        />
 
         {/* Auth Entry */}
         <div className="w-full">
@@ -40,6 +29,16 @@ export default function Home() {
         <p className="text-center text-zinc-500 text-sm">
           Connect with contractors, manage projects, and secure your investments.
         </p>
+
+          {/* Intro pricing text */}
+          <div className="text-center mt-1">
+            <p className="text-white text-base font-semibold">
+              $10 / month for your first 90 days for all paid subscriptions
+            </p>
+            <p className="text-zinc-400 text-xs mt-1">
+              Then $49.99/mo (Contractor Plan) or $99.99/mo (Business Plan) - cancel anytime.
+            </p>
+          </div>
       </div>
     </div>
   );

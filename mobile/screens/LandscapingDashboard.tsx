@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Alert, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { Screen } from '../types/navigation';
+import MobileScreenHeader from '../components/MobileScreenHeader';
 
 interface LandscaperProfile {
   id: string;
@@ -20,7 +20,7 @@ interface LandscaperProfile {
 
 interface LandscapingDashboardProps {
   onBack: () => void;
-  onNavigate: (screen: Screen, params?: unknown) => void;
+  onNavigate: (screen: string, params?: any) => void;
 }
 
 export default function LandscapingDashboard({ onBack, onNavigate }: LandscapingDashboardProps) {
@@ -125,15 +125,13 @@ export default function LandscapingDashboard({ onBack, onNavigate }: Landscaping
       >
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onBack} style={styles.backButton}>
-              <Text style={styles.backButtonText}>← Back to Categories</Text>
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Landscaping Professionals</Text>
-            <Text style={styles.headerSubtitle}>
-              Find landscapers, designers, and hardscape specialists
-            </Text>
-          </View>
+          <MobileScreenHeader
+            onBack={onBack}
+            backLabel="← Back to Categories"
+            title="Landscaping Professionals"
+            subtitle="Find landscapers, designers, and hardscape specialists"
+            theme="dark"
+          />
 
           {/* Stats */}
           <View style={styles.statsCard}>
@@ -414,10 +412,8 @@ export default function LandscapingDashboard({ onBack, onNavigate }: Landscaping
                   <TouchableOpacity 
                     style={styles.modalButton}
                     onPress={() => {
-                      const landscaperId = selectedLandscaper.id;
-                      const landscaperName = selectedLandscaper.name;
                       setSelectedLandscaper(null);
-                      onNavigate('chat', { receiverId: landscaperId, contactName: landscaperName });
+                      Alert.alert('Contact', `Send message to ${selectedLandscaper.name}`);
                     }}
                   >
                     <Text style={styles.modalButtonText}>Send Message</Text>
@@ -426,9 +422,8 @@ export default function LandscapingDashboard({ onBack, onNavigate }: Landscaping
                   <TouchableOpacity 
                     style={styles.modalButton}
                     onPress={() => {
-                      const landscaperId = selectedLandscaper.id;
                       setSelectedLandscaper(null);
-                      onNavigate('newEstimate', { contractorId: landscaperId });
+                      Alert.alert('Request Quote', 'Request a free estimate');
                     }}
                   >
                     <Text style={styles.modalButtonText}>Request Free Quote</Text>

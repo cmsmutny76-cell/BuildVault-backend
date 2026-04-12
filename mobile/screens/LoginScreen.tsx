@@ -9,13 +9,19 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
+import BrandLockup from '../components/BrandLockup';
+
+import type { MobileUserType } from '../services/api';
 
 interface LoginScreenProps {
-  onLogin: (user: { id: string; email: string; isContractor: boolean }) => void;
+  onLogin: (user: { id: string; email: string; isContractor: boolean; userType?: MobileUserType; firstName?: string; lastName?: string }, token: string) => void;
   onNavigateToRegister: () => void;
+  onBackToLanding?: () => void;
 }
 
-export default function LoginScreen({ onLogin, onNavigateToRegister }: LoginScreenProps) {
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
+
+export default function LoginScreen({ onLogin, onNavigateToRegister, onBackToLanding }: LoginScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,7 +35,7 @@ export default function LoginScreen({ onLogin, onNavigateToRegister }: LoginScre
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:3000/api/auth/login', {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -40,13 +46,17 @@ export default function LoginScreen({ onLogin, onNavigateToRegister }: LoginScre
       const data = await response.json();
 
       if (response.ok && data.success) {
-        // Store token for future API calls
-        // TODO: Store token in AsyncStorage or SecureStore
-        onLogin({
-          id: data.user.id,
-          email: data.user.email,
-          isContractor: data.user.isContractor,
-        });
+        onLogin(
+          {
+            id: data.user.id,
+            email: data.user.email,
+            isContractor: data.user.isContractor ?? (data.user.userType === 'contractor'),
+            userType: data.user.userType,
+            firstName: data.user.firstName,
+            lastName: data.user.lastName,
+          },
+          data.token
+        );
       } else {
         Alert.alert('Login Failed', data.error || 'Invalid email or password');
       }
@@ -62,9 +72,12 @@ export default function LoginScreen({ onLogin, onNavigateToRegister }: LoginScre
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.logo}>🏗️</Text>
-          <Text style={styles.title}>LeadGen Pro</Text>
-          <Text style={styles.subtitle}>Sign in to your account</Text>
+          {onBackToLanding && (
+            <TouchableOpacity onPress={onBackToLanding} style={styles.backLinkButton}>
+              <Text style={styles.backLinkText}>← Back to Welcome</Text>
+            </TouchableOpacity>
+          )}
+          <BrandLockup subtitle="Sign in to your account" variant="hero" />
         </View>
 
         <View style={styles.form}>
@@ -119,13 +132,6 @@ export default function LoginScreen({ onLogin, onNavigateToRegister }: LoginScre
           >
             <Text style={styles.registerButtonText}>Create New Account</Text>
           </TouchableOpacity>
-
-          <View style={styles.demoSection}>
-            <Text style={styles.demoTitle}>Demo Accounts:</Text>
-            <Text style={styles.demoText}>👤 Homeowner: homeowner@test.com</Text>
-            <Text style={styles.demoText}>👷 Contractor: contractor@test.com</Text>
-            <Text style={styles.demoPassword}>Password: password123</Text>
-          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -135,7 +141,7 @@ export default function LoginScreen({ onLogin, onNavigateToRegister }: LoginScre
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#0f172a',
   },
   scrollContent: {
     flexGrow: 1,
@@ -144,32 +150,24 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 32,
+    width: '100%',
   },
-  logo: {
-    fontSize: 64,
-    marginBottom: 16,
+  backLinkButton: {
+    alignSelf: 'flex-start',
+    marginBottom: 14,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#0f172a',
-    marginBottom: 8,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#64748b',
+  backLinkText: {
+    color: '#D4AF37',
+    fontSize: 14,
+    fontWeight: '600',
   },
   form: {
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: 16,
     padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.22)',
   },
   inputGroup: {
     marginBottom: 20,
@@ -177,33 +175,33 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#334155',
+    color: '#cbd5e1',
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: 'rgba(15,23,42,0.92)',
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: 'rgba(212,175,55,0.24)',
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
-    color: '#0f172a',
+    color: '#ffffff',
   },
   forgotPassword: {
     alignSelf: 'flex-end',
     marginBottom: 20,
   },
   forgotPasswordText: {
-    color: '#3b82f6',
+    color: '#fb923c',
     fontSize: 14,
     fontWeight: '600',
   },
   loginButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#ea580c',
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#3b82f6',
+    shadowColor: '#ea580c',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -226,7 +224,7 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: 'rgba(212,175,55,0.22)',
   },
   dividerText: {
     marginHorizontal: 12,
@@ -235,42 +233,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   registerButton: {
-    backgroundColor: '#ffffff',
+    backgroundColor: 'transparent',
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#3b82f6',
+    borderWidth: 1,
+    borderColor: '#ea580c',
   },
   registerButtonText: {
-    color: '#3b82f6',
+    color: '#fb923c',
     fontSize: 17,
     fontWeight: '700',
     letterSpacing: 0.5,
-  },
-  demoSection: {
-    marginTop: 24,
-    padding: 16,
-    backgroundColor: '#f0f9ff',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#bae6fd',
-  },
-  demoTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0369a1',
-    marginBottom: 8,
-  },
-  demoText: {
-    fontSize: 13,
-    color: '#0c4a6e',
-    marginBottom: 4,
-  },
-  demoPassword: {
-    fontSize: 12,
-    color: '#64748b',
-    marginTop: 4,
-    fontStyle: 'italic',
   },
 });

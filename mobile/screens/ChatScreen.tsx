@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, TextInput, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { messageAPI } from '../services/api';
 
 interface Message {
   id: string;
@@ -36,8 +37,7 @@ export default function ChatScreen({ onBack, conversationId = '1', contactName =
   const fetchMessages = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:3000/api/messages?userId=${currentUserId}&conversationId=${conversationId}`);
-      const data = await response.json();
+      const data = await messageAPI.getMessages(currentUserId, conversationId);
 
       if (data.success && data.messages) {
         // Transform API messages to our Message interface
@@ -82,18 +82,12 @@ export default function ChatScreen({ onBack, conversationId = '1', contactName =
       setMessages(prev => [...prev, tempMessage]);
 
       // Send to API
-      const response = await fetch('http://localhost:3000/api/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          conversationId,
-          senderId: currentUserId,
-          receiverId: 'user_2', // TODO: Get from conversation data
-          content: messageText,
-        }),
+      const data = await messageAPI.sendMessage({
+        conversationId,
+        senderId: currentUserId,
+        receiverId: 'user_2', // TODO: Get from conversation data
+        content: messageText,
       });
-
-      const data = await response.json();
 
       if (data.success && data.message) {
         // Replace temp message with server message

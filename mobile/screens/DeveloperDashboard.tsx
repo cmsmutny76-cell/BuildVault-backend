@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground, Alert, Modal, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { Screen } from '../types/navigation';
+import MobileScreenHeader from '../components/MobileScreenHeader';
 
 interface DevelopmentProject {
   id: string;
@@ -20,7 +20,7 @@ interface DevelopmentProject {
 
 interface DeveloperDashboardProps {
   onBack: () => void;
-  onNavigate: (screen: Screen, params?: unknown) => void;
+  onNavigate: (screen: string, params?: any) => void;
 }
 
 export default function DeveloperDashboard({ onBack, onNavigate }: DeveloperDashboardProps) {
@@ -121,15 +121,13 @@ export default function DeveloperDashboard({ onBack, onNavigate }: DeveloperDash
       >
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onBack} style={styles.backButton}>
-              <Text style={styles.backButtonText}>← Back to Categories</Text>
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Developer Portfolio</Text>
-            <Text style={styles.headerSubtitle}>
-              Manage large-scale development projects and investment portfolio
-            </Text>
-          </View>
+          <MobileScreenHeader
+            onBack={onBack}
+            backLabel="← Back to Categories"
+            title="Developer Portfolio"
+            subtitle="Manage large-scale development projects and investment portfolio"
+            theme="dark"
+          />
 
           {/* Portfolio Stats */}
           <View style={styles.portfolioCard}>
@@ -279,7 +277,11 @@ export default function DeveloperDashboard({ onBack, onNavigate }: DeveloperDash
               style={styles.actionCard}
               onPress={() => onNavigate('contractorSearch')}
             >
-              <Text style={styles.actionIcon}>🏗️</Text>
+              <Image
+                source={require('../assets/splash-icon.png')}
+                style={styles.brandIcon}
+                resizeMode="contain"
+              />
               <View style={styles.actionContent}>
                 <Text style={styles.actionTitle}>General Contractors</Text>
                 <Text style={styles.actionDescription}>
@@ -775,6 +777,11 @@ const styles = StyleSheet.create({
   },
   actionIcon: {
     fontSize: 32,
+    marginRight: 15,
+  },
+  brandIcon: {
+    width: 32,
+    height: 32,
     marginRight: 15,
   },
   actionContent: {
