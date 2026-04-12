@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isEmailEnabled, verifyEmailConnection } from '../../../../../lib/email';
 
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 function maskEmail(value: string | undefined): string | null {
   if (!value || !value.includes('@')) {
     return null;
@@ -27,6 +33,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const shouldVerify = searchParams.get('verify') === 'true';
+    const verifyTimeoutMs = parsePositiveInt(process.env.EMAIL_HEALTH_VERIFY_TIMEOUT_MS, 12000);
 
     const smtpHost = process.env.SMTP_HOST;
     const smtpPort = process.env.SMTP_PORT;
@@ -36,7 +43,12 @@ export async function GET(request: NextRequest) {
 
     let verified: boolean | null = null;
     if (shouldVerify && configured) {
-      verified = await verifyEmailConnection();
+      verified = await Promise.race<boolean>([
+        verifyEmailConnection(),
+        new Promise<boolean>((resolve) => {
+          setTimeout(() => resolve(false), verifyTimeoutMs);
+        }),
+      ]);
     }
 
     const statusCode = shouldVerify
