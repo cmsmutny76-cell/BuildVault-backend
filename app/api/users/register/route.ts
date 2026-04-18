@@ -316,6 +316,15 @@ export async function POST(request: NextRequest) {
           messageId: emailResult && 'messageId' in emailResult ? emailResult.messageId : null,
         });
         if (!emailResult.success) {
+          const possibleError = emailResult && 'error' in emailResult ? emailResult.error : undefined;
+          const err = possibleError instanceof Error ? possibleError : new Error(String(possibleError ?? 'unknown'));
+          console.warn('[register-email-audit] verification email skipped and why', {
+            userId,
+            email: email.toLowerCase(),
+            reason: 'email-dispatch-returned-success-false',
+            errorMessage: err.message,
+            errorStack: err.stack,
+          });
           console.error('Failed to send verification email, but user was created');
         }
       })
@@ -329,6 +338,12 @@ export async function POST(request: NextRequest) {
         });
         console.error('Verification email send timed out/failed after registration:', error);
       });
+
+    console.info('[register-email-audit] route returning 200 without awaiting verification email dispatch', {
+      userId,
+      email: email.toLowerCase(),
+      reason: 'fire-and-forget dispatch to avoid blocking signup response',
+    });
 
     // Generate JWT token (but user still needs to verify email to login)
     const token = jwt.sign(

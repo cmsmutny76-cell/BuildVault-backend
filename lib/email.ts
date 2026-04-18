@@ -51,6 +51,13 @@ export async function sendVerificationEmail(
   userId: string,
   verificationToken: string
 ) {
+  console.info('[email-audit] entered sendVerificationEmail function', {
+    email,
+    userId,
+    hasVerificationToken: Boolean(verificationToken),
+    verificationTokenLength: verificationToken?.length ?? 0,
+  });
+
   const smtpHost = process.env.SMTP_HOST;
   const smtpPort = process.env.SMTP_PORT;
   const smtpUser = process.env.SMTP_USER;
@@ -95,6 +102,11 @@ export async function sendVerificationEmail(
     smtpPortLooksValid,
     exitsEarlyForMissingOrInvalidEnv: false,
     reason: 'No env-guard early-return is implemented; function proceeds to transporter.sendMail path.',
+  });
+
+  console.info('[email-audit] early return in email function and why', {
+    earlyReturnExecuted: false,
+    reason: 'No early return branch exists in sendVerificationEmail; function always proceeds to try/catch around sendMail.',
   });
 
   const verificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}&userId=${userId}`;
