@@ -302,47 +302,60 @@ export async function POST(request: NextRequest) {
       downstreamFile: 'lib/email.ts',
     });
 
-    // Do not block registration response on SMTP delivery latency.
     console.info('[register-email-audit] immediately before calling sendVerificationEmailWithTimeout', {
       userId,
       email: email.toLowerCase(),
     });
-    void sendVerificationEmailWithTimeout(email, userId, verificationToken)
-      .then((emailResult) => {
-        console.info('[register-email-audit] verification email dispatch resolved', {
-          userId,
-          email: email.toLowerCase(),
-          success: Boolean(emailResult?.success),
-          messageId: emailResult && 'messageId' in emailResult ? emailResult.messageId : null,
-        });
-        if (!emailResult.success) {
-          const possibleError = emailResult && 'error' in emailResult ? emailResult.error : undefined;
-          const err = possibleError instanceof Error ? possibleError : new Error(String(possibleError ?? 'unknown'));
-          console.warn('[register-email-audit] verification email skipped and why', {
-            userId,
-            email: email.toLowerCase(),
-            reason: 'email-dispatch-returned-success-false',
-            errorMessage: err.message,
-            errorStack: err.stack,
-          });
-          console.error('Failed to send verification email, but user was created');
-        }
-      })
-      .catch((error) => {
-        const err = error instanceof Error ? error : new Error(String(error));
-        console.error('[register-email-audit] verification email dispatch threw', {
-          userId,
-          email: email.toLowerCase(),
-          message: err.message,
-          stack: err.stack,
-        });
-        console.error('Verification email send timed out/failed after registration:', error);
+    let emailResult:
+      | { success: boolean; messageId?: string; error?: unknown }
+      | null = null;
+
+    try {
+      emailResult = await sendVerificationEmailWithTimeout(email, userId, verificationToken);
+      console.info('[register-email-audit] verification email dispatch resolved', {
+        userId,
+        email: email.toLowerCase(),
+        success: Boolean(emailResult?.success),
+        messageId: emailResult && 'messageId' in emailResult ? emailResult.messageId : null,
       });
 
-    console.info('[register-email-audit] route returning 200 without awaiting verification email dispatch', {
+      if (!emailResult.success) {
+        const possibleError = emailResult && 'error' in emailResult ? emailResult.error : undefined;
+        const err = possibleError instanceof Error ? possibleError : new Error(String(possibleError ?? 'unknown'));
+        console.warn('[register-email-audit] verification email skipped and why', {
+          userId,
+          email: email.toLowerCase(),
+          reason: 'email-dispatch-returned-success-false',
+          errorMessage: err.message,
+          errorStack: err.stack,
+        });
+        console.error('Failed to send verification email, but user was created');
+      }
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      emailResult = { success: false, error: err };
+      console.error('[register-email-audit] verification email dispatch threw', {
+        userId,
+        email: email.toLowerCase(),
+        message: err.message,
+        stack: err.stack,
+      });
+      console.error('Verification email send timed out/failed after registration:', error);
+    }
+
+    const verificationEmailSent = Boolean(emailResult?.success);
+    const verificationEmailError =
+      !verificationEmailSent && emailResult && 'error' in emailResult
+        ? emailResult.error instanceof Error
+          ? emailResult.error.message
+          : String(emailResult.error)
+        : null;
+
+    console.info('[register-email-audit] route returning 200 after awaited verification email attempt', {
       userId,
       email: email.toLowerCase(),
-      reason: 'fire-and-forget dispatch to avoid blocking signup response',
+      verificationEmailSent,
+      verificationEmailError,
     });
 
     // Generate JWT token (but user still needs to verify email to login)
@@ -370,9 +383,13 @@ export async function POST(request: NextRequest) {
         subscription: subscription,
         verified: user.verified,
       },
-      message: subscriptionPlan
-        ? `90-day intro pricing activated at $10/month for ${subscriptionPlan.plan}! Please check your email to verify your account.`
-        : 'Account created successfully! Please check your email to verify your account.',
+      message: verificationEmailSent
+        ? subscriptionPlan
+          ? `90-day intro pricing activated at $10/month for ${subscriptionPlan.plan}! Please check your email to verify your account.`
+          : 'Account created successfully! Please check your email to verify your account.'
+        : 'Account created successfully, but verification email could not be sent. Please request a new verification email.',
+      verificationEmailSent,
+      verificationEmailError,
     });
   } catch (error) {
     console.error('Registration error:', error);
