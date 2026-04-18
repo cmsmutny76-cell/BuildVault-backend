@@ -65,8 +65,26 @@ async function sendVerificationEmailWithTimeout(
     setTimeout(() => reject(new Error(`Verification email timed out after ${EMAIL_SEND_TIMEOUT_MS}ms`)), EMAIL_SEND_TIMEOUT_MS);
   });
 
+  console.info('[register-email-audit] immediately before calling sendVerificationEmail', {
+    email,
+    userId,
+    hasVerificationToken: Boolean(verificationToken),
+    senderFunction: 'sendVerificationEmail',
+    senderFile: 'lib/email.ts',
+  });
+
+  const sendPromise = sendVerificationEmail(email, userId, verificationToken).then((result) => {
+    console.info('[register-email-audit] immediately after sendVerificationEmail returned', {
+      email,
+      userId,
+      success: Boolean(result?.success),
+      messageId: result && 'messageId' in result ? result.messageId : null,
+    });
+    return result;
+  });
+
   return Promise.race([
-    sendVerificationEmail(email, userId, verificationToken),
+    sendPromise,
     timeoutPromise,
   ]);
 }
@@ -96,6 +114,15 @@ const SUBSCRIPTION_PLANS: Record<string, { plan: string; standardPrice: number }
 export async function POST(request: NextRequest) {
   try {
     const userData = await request.json();
+
+    console.info('[register-email-audit] register route started', {
+      host: request.headers.get('host'),
+      origin: request.headers.get('origin'),
+      referer: request.headers.get('referer'),
+      xForwardedHost: request.headers.get('x-forwarded-host'),
+      xForwardedProto: request.headers.get('x-forwarded-proto'),
+      hasBody: Boolean(userData),
+    });
 
     const {
       firstName,
@@ -251,6 +278,13 @@ export async function POST(request: NextRequest) {
       expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
     });
 
+    console.info('[register-email-audit] verification token created', {
+      userId,
+      email: email.toLowerCase(),
+      hasVerificationToken: Boolean(verificationToken),
+      verificationTokenLength: verificationToken.length,
+    });
+
     await createUser(user);
 
     console.info('[register-email-audit] user created, triggering verification email dispatch', {
@@ -259,7 +293,20 @@ export async function POST(request: NextRequest) {
       verified: user.verified,
     });
 
+    console.info('[register-email-audit] verification email dispatch decision', {
+      willCallVerificationEmailSender: true,
+      dispatchMode: 'fire-and-forget',
+      senderFunction: 'sendVerificationEmailWithTimeout',
+      senderFile: 'app/api/users/register/route.ts',
+      downstreamFunction: 'sendVerificationEmail',
+      downstreamFile: 'lib/email.ts',
+    });
+
     // Do not block registration response on SMTP delivery latency.
+    console.info('[register-email-audit] immediately before calling sendVerificationEmailWithTimeout', {
+      userId,
+      email: email.toLowerCase(),
+    });
     void sendVerificationEmailWithTimeout(email, userId, verificationToken)
       .then((emailResult) => {
         console.info('[register-email-audit] verification email dispatch resolved', {

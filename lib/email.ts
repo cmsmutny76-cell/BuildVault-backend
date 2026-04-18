@@ -67,6 +67,9 @@ export async function sendVerificationEmail(
 
   const fromAddress = process.env.SMTP_USER || 'noreply@leadgenpro.com';
   const fromName = 'LeadGen Pro';
+  const hasCriticalSmtpEnv = Boolean(smtpHost && smtpPort && smtpUser && smtpPass);
+  const parsedSmtpPort = Number.parseInt(smtpPort || '', 10);
+  const smtpPortLooksValid = Number.isFinite(parsedSmtpPort) && parsedSmtpPort > 0;
 
   console.info('[email-audit] sendVerificationEmail env audit', {
     hasSMTP_HOST: Boolean(smtpHost),
@@ -83,6 +86,15 @@ export async function sendVerificationEmail(
     },
     resolvedFromAddressSource: process.env.SMTP_USER ? 'SMTP_USER' : 'default(noreply@leadgenpro.com)',
     usesAlternateFromEnv: false,
+    hasCriticalSmtpEnv,
+    smtpPortLooksValid,
+  });
+
+  console.info('[email-audit] early-exit evaluation for sendVerificationEmail', {
+    hasCriticalSmtpEnv,
+    smtpPortLooksValid,
+    exitsEarlyForMissingOrInvalidEnv: false,
+    reason: 'No env-guard early-return is implemented; function proceeds to transporter.sendMail path.',
   });
 
   const verificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}&userId=${userId}`;
